@@ -6,6 +6,7 @@ import java.util.UUID
 data class TrackIdentity(val id: String, val sourceId: String, val externalId: String) {
     companion object {
         const val YOUTUBE = "youtube"
+        const val LOCAL = "local"
         private val generatedKey = Regex("src_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
         fun isGeneratedId(id: String): Boolean = generatedKey.matches(id)

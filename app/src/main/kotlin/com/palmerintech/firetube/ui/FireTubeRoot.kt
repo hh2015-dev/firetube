@@ -105,6 +105,7 @@ import kotlin.reflect.KClass
 @Serializable data class PlaylistRoute(val id: String)
 @Serializable data class RemotePlaylistRoute(val url: String)
 @Serializable data class TrackListRoute(val list: String)
+@Serializable data object LocalAudioRoute
 @Serializable data object StatsRoute
 
 private data class Tab(val route: Any, val routeClass: KClass<*>, @StringRes val label: Int, val icon: ImageVector, val selectedIcon: ImageVector)
@@ -130,6 +131,10 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
     val backStack by nav.currentBackStackEntryAsState()
     val showMessage: (String) -> Unit = { msg -> scope.launch { snackbar.showSnackbar(msg) } }
     val resources = LocalResources.current
+    LaunchedEffect(playerState.localPlaybackError, playerState.localCastBlocked) {
+        if (playerState.localPlaybackError) showMessage(resources.getString(R.string.local_audio_unavailable))
+        if (playerState.localCastBlocked) showMessage(resources.getString(R.string.local_audio_cast))
+    }
 
     // Links shared to / opened with FireTube.
     // Links shared to / opened with FireTube, voice searches and the widget. The link is cleared
@@ -271,9 +276,11 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                             onOpenList = { nav.navigate(TrackListRoute(it.name)) },
                             onOpenRemotePlaylist = { nav.navigate(RemotePlaylistRoute(it)) },
                             onOpenStats = { nav.navigate(StatsRoute) },
+                            onOpenLocal = { nav.navigate(LocalAudioRoute) },
                             content,
                         )
                     }
+                    composable<LocalAudioRoute> { com.palmerintech.firetube.ui.library.LocalAudioScreen(container, { nav.popBackStack() }, content) }
                     composable<SettingsRoute> { SettingsScreen(container, onBack = { nav.popBackStack() }, showMessage, content) }
                     composable<PlaylistRoute> { entry ->
                         PlaylistScreen(container, entry.toRoute<PlaylistRoute>().id, onBack = { nav.popBackStack() }, content)

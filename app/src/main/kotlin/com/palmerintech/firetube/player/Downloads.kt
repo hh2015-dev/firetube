@@ -86,6 +86,7 @@ class Downloads(
     }
 
     fun download(track: Track) {
+        if (track.sourceId == TrackIdentity.LOCAL) return // Already on the device; never duplicate its bytes.
         resolver.remember(track)
         val request = DownloadRequest.Builder(track.id, MediaItems.uriOf(track.id))
             .setData(json.encodeToString(StoredTrack.serializer(), StoredTrack.of(track)).encodeToByteArray())
@@ -122,11 +123,11 @@ class Downloads(
     }
 
     @Serializable
-    internal data class StoredTrack(val id: String, val title: String, val artist: String, val duration: Long, val thumb: String?, val sourceId: String = TrackIdentity.YOUTUBE, val externalId: String = id) {
-        fun toTrack() = Track(id, title, artist, duration, thumb, sourceId = sourceId, externalId = externalId)
+    internal data class StoredTrack(val id: String, val title: String, val artist: String, val duration: Long, val thumb: String?, val sourceId: String = TrackIdentity.YOUTUBE, val externalId: String = id, val album: String? = null, val fileName: String? = null) {
+        fun toTrack() = Track(id, title, artist, duration, thumb, sourceId = sourceId, externalId = externalId, album = album, fileName = fileName)
 
         companion object {
-            fun of(t: Track) = StoredTrack(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl, t.sourceId, t.externalId)
+            fun of(t: Track) = StoredTrack(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl, t.sourceId, t.externalId, t.album, t.fileName)
         }
     }
 

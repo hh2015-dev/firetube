@@ -21,7 +21,7 @@ class IdentityPersistenceTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val text = "שָׁלוֹם العربية Ελληνικά e\u0301 🎵"
     private val identity = TrackIdentity.forSource("fixture", "תיקייה/موسيقى/Ελληνικά.mp3")
-    private val track = Track(identity.id, text, text, 123, null, sourceId = identity.sourceId, externalId = identity.externalId)
+    private val track = Track(identity.id, text, text, 123, null, sourceId = identity.sourceId, externalId = identity.externalId, album = text, fileName = "שירים موسيقى Ελληνικά e\u0301.mp3")
     private val json = Json { ignoreUnknownKeys = true }
     private val oldJson = """{"id":"dQw4w9WgXcQ","title":"שלום العربية Ελληνικά","artist":"artist","duration":123,"thumb":null}"""
 

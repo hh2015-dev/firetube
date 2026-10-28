@@ -1,5 +1,7 @@
 package com.palmerintech.firetube.ui.player
 
+import com.palmerintech.firetube.extractor.TrackIdentity
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
@@ -415,7 +417,7 @@ fun NowPlayingScreen(
                             fontWeight = if (normal) FontWeight.Normal else FontWeight.Bold,
                         )
                     }
-                    CastButton(container.castAvailable)
+                    CastButton(container.castAvailable && state.queue.none { it.sourceId == TrackIdentity.LOCAL })
                     IconButton(onClick = { menu.open(track) }) { Icon(Icons.Default.MoreVert, stringResource(R.string.action_more)) }
                 }
                 // Landscape (tablets, TV): artwork beside the controls instead of above them.

@@ -29,12 +29,14 @@ data class TrackSnapshot(
     val thumb: String? = null,
     val sourceId: String = TrackIdentity.YOUTUBE,
     val externalId: String = id,
+    val album: String? = null,
+    val fileName: String? = null,
 ) {
-    fun toTrack() = Track(id, title, artist, duration, thumb, sourceId = sourceId, externalId = externalId)
+    fun toTrack() = Track(id, title, artist, duration, thumb, sourceId = sourceId, externalId = externalId, album = album, fileName = fileName)
 
     internal fun toCloudMap(): Map<String, Any?> = mapOf(
         "id" to id, "title" to title, "artist" to artist, "duration" to duration,
-        "thumb" to thumb, "sourceId" to sourceId, "externalId" to externalId,
+        "thumb" to thumb, "sourceId" to sourceId, "externalId" to externalId, "album" to album, "fileName" to fileName,
     )
 
     companion object {
@@ -46,9 +48,11 @@ data class TrackSnapshot(
             thumb = t["thumb"] as? String,
             sourceId = t["sourceId"] as? String ?: TrackIdentity.YOUTUBE,
             externalId = t["externalId"] as? String ?: t["id"] as String,
+            album = t["album"] as? String,
+            fileName = t["fileName"] as? String,
         )
 
-        fun of(t: Track) = TrackSnapshot(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl, t.sourceId, t.externalId)
+        fun of(t: Track) = TrackSnapshot(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl, t.sourceId, t.externalId, t.album, t.fileName)
     }
 }
 

@@ -94,6 +94,8 @@ class LibraryRepository(private val dao: LibraryDao) {
     }
 
     /** What we already know about a track, if it's been saved or played before. */
+    suspend fun saveTracks(tracks: List<Track>) = dao.upsertTracks(tracks.map(TrackEntity::of))
+
     suspend fun knownTrack(id: String): Track? = dao.track(id)?.toTrack()
 
     suspend fun recordPlay(track: Track, at: Long = now()) {

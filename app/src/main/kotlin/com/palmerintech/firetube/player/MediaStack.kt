@@ -41,7 +41,7 @@ class MediaStack(
     val networkFactory: DataSource.Factory = YouTubeDataSource.Factory(OkHttpDataSource.Factory(httpClient), resolver)
 
     /** Playback: downloads (read-only, plain keys) → stream cache (keyed by id + quality) → network. */
-    val playbackFactory: DataSource.Factory = CacheDataSource.Factory()
+    private val cachedFactory: DataSource.Factory = CacheDataSource.Factory()
         .setCache(downloadCache)
         .setCacheWriteDataSinkFactory(null)
         .setUpstreamDataSourceFactory(
@@ -51,4 +51,7 @@ class MediaStack(
                 .setCacheKeyFactory { spec -> "${spec.key ?: spec.uri}@${qualityTag()}" }
                 .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR),
         )
+    val playbackFactory: DataSource.Factory = DataSource.Factory {
+        PlaybackDataSource(cachedFactory.createDataSource(), LocalPlaybackDataSource(context, resolver))
+    }
 }

@@ -1,5 +1,7 @@
 # Source identity refactor (phase 1)
 
+Historical report for `30ca85e`. For the next local-audio phase, see [LOCAL_AUDIO.md](LOCAL_AUDIO.md).
+
 Only YouTube is registered. No Drive, SoundCloud, local-file adapter, OAuth flow,
 new runtime dependency, or paid service is introduced by this change.
 

@@ -25,8 +25,8 @@ class QueueStore(context: Context) {
     data class Saved(val tracks: List<SavedTrack>, val index: Int, val positionMs: Long)
 
     @Serializable
-    data class SavedTrack(val id: String, val title: String, val artist: String, val duration: Long, val thumb: String?, val sourceId: String = TrackIdentity.YOUTUBE, val externalId: String = id) {
-        fun toTrack() = Track(id, title, artist, duration, thumb, sourceId = sourceId, externalId = externalId)
+    data class SavedTrack(val id: String, val title: String, val artist: String, val duration: Long, val thumb: String?, val sourceId: String = TrackIdentity.YOUTUBE, val externalId: String = id, val album: String? = null, val fileName: String? = null) {
+        fun toTrack() = Track(id, title, artist, duration, thumb, sourceId = sourceId, externalId = externalId, album = album, fileName = fileName)
     }
 
     private val writer = Executors.newSingleThreadExecutor()
@@ -51,7 +51,7 @@ class QueueStore(context: Context) {
     }
 
     private fun write(tracks: List<Track>, index: Int, positionMs: Long) {
-        val saved = Saved(tracks.map { SavedTrack(it.id, it.title, it.artist, it.durationSeconds, it.thumbnailUrl, it.sourceId, it.externalId) }, index, positionMs)
+        val saved = Saved(tracks.map { SavedTrack(it.id, it.title, it.artist, it.durationSeconds, it.thumbnailUrl, it.sourceId, it.externalId, it.album, it.fileName) }, index, positionMs)
         val bytes = json.encodeToString(Saved.serializer(), saved).encodeToByteArray()
         val out = try {
             file.startWrite()

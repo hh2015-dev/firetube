@@ -13,12 +13,14 @@ data class Track(
     val isLive: Boolean = false,
     val sourceId: String = TrackIdentity.YOUTUBE,
     val externalId: String = id,
+    val album: String? = null,
+    val fileName: String? = null,
 ) {
     val identity: TrackIdentity get() = TrackIdentity(id, sourceId, externalId)
 
     val url: String? get() = if (sourceId == TrackIdentity.YOUTUBE) "https://www.youtube.com/watch?v=$externalId" else null
 
-    val credit: ArtistCredit get() = ArtistCredit.parse(artist)
+    val credit: ArtistCredit get() = if (sourceId == TrackIdentity.YOUTUBE) ArtistCredit.parse(artist) else ArtistCredit(artist)
 }
 
 /**

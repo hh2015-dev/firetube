@@ -9,6 +9,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -44,6 +45,8 @@ data class PlayerUiState(
     val speed: Float = 1f,
     /** Connected to the playback service; until then [current] is null even if a queue will be restored. */
     val connected: Boolean = false,
+    val localPlaybackError: Boolean = false,
+    val localCastBlocked: Boolean = false,
 )
 
 /**
@@ -101,6 +104,7 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
 
     fun play(tracks: List<Track>, startIndex: Int = 0, shuffle: Boolean = false) = withController { c ->
         if (tracks.isEmpty()) return@withController
+        if (blocksLocalCast(c, tracks)) return@withController
         c.shuffleModeEnabled = shuffle
         val start = if (shuffle) tracks.indices.random() else startIndex.coerceIn(tracks.indices)
         c.setMediaItems(tracks.map(MediaItems::of), start, 0)
@@ -110,12 +114,21 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
 
     fun playNext(track: Track) = withController { c ->
         if (c.mediaItemCount == 0) return@withController play(listOf(track))
+        if (blocksLocalCast(c, listOf(track))) return@withController
         c.addMediaItem(c.currentMediaItemIndex + 1, MediaItems.of(track))
     }
 
     fun enqueue(tracks: List<Track>) = withController { c ->
         if (c.mediaItemCount == 0) return@withController play(tracks)
+        if (blocksLocalCast(c, tracks)) return@withController
         c.addMediaItems(tracks.map(MediaItems::of))
+    }
+
+    private fun blocksLocalCast(controller: MediaController, tracks: List<Track>): Boolean {
+        val blocked = controller.deviceInfo.playbackType == androidx.media3.common.DeviceInfo.PLAYBACK_TYPE_REMOTE &&
+            tracks.any { it.sourceId == TrackIdentity.LOCAL }
+        if (blocked) _state.value = _state.value.copy(localCastBlocked = true)
+        return blocked
     }
 
     fun togglePlay() = withController { c -> if (c.isPlaying) c.pause() else c.resume() }
@@ -178,6 +191,7 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
             hasPrevious = p.hasPreviousMediaItem(),
             speed = p.playbackParameters.speed,
             connected = true,
+            localPlaybackError = p.playerError != null && current?.sourceId == TrackIdentity.LOCAL,
         )
         if (p.isPlaying) startTicker(p) else ticker?.cancel()
     }

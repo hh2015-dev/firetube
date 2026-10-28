@@ -357,4 +357,13 @@
     <string name="widget_pause">Pause</string>
     <string name="widget_next">Next</string>
     <string name="widget_previous">Previous</string>
+    <string name="local_audio_title">On this device</string>
+    <string name="local_audio_refresh">Refresh audio files</string>
+    <string name="local_audio_permission">Allow access to audio files on this device.</string>
+    <string name="local_audio_allow">Allow audio access</string>
+    <string name="local_audio_settings">App settings</string>
+    <string name="local_audio_failed">Could not read the audio library. Check permission and refresh.</string>
+    <string name="local_audio_empty">No indexed audio files found. Copy music to the device and refresh.</string>
+    <string name="local_audio_unavailable">This file is unavailable or unsupported. Check audio permission, its location and format.</string>
+    <string name="local_audio_cast">Disconnect Chromecast before playing local files.</string>
 </resources>

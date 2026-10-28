@@ -19,11 +19,13 @@ data class TrackEntity(
     val thumbnailUrl: String?,
     @ColumnInfo(defaultValue = "'youtube'") val sourceId: String = TrackIdentity.YOUTUBE,
     @ColumnInfo(defaultValue = "''") val externalId: String = id,
+    val album: String? = null,
+    val fileName: String? = null,
 ) {
-    fun toTrack() = Track(id, title, artist, durationSeconds, thumbnailUrl, sourceId = sourceId, externalId = externalId)
+    fun toTrack() = Track(id, title, artist, durationSeconds, thumbnailUrl, sourceId = sourceId, externalId = externalId, album = album, fileName = fileName)
 
     companion object {
-        fun of(t: Track) = TrackEntity(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl, t.sourceId, t.externalId)
+        fun of(t: Track) = TrackEntity(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl, t.sourceId, t.externalId, t.album, t.fileName)
     }
 }
 

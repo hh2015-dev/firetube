@@ -326,4 +326,13 @@
     <string name="widget_pause">Pausar</string>
     <string name="widget_next">Próxima</string>
     <string name="widget_previous">Anterior</string>
+    <string name="local_audio_title">Neste dispositivo</string>
+    <string name="local_audio_refresh">Atualizar arquivos de áudio</string>
+    <string name="local_audio_permission">Permita o acesso aos arquivos de áudio deste dispositivo.</string>
+    <string name="local_audio_allow">Permitir acesso ao áudio</string>
+    <string name="local_audio_settings">Configurações do aplicativo</string>
+    <string name="local_audio_failed">Não foi possível ler a biblioteca de áudio. Verifique a permissão e atualize.</string>
+    <string name="local_audio_empty">Nenhum arquivo de áudio indexado encontrado. Copie músicas para o dispositivo e atualize.</string>
+    <string name="local_audio_unavailable">Este arquivo está indisponível ou não é compatível. Verifique a permissão, o local e o formato.</string>
+    <string name="local_audio_cast">Desconecte o Chromecast antes de reproduzir arquivos locais.</string>
 </resources>

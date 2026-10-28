@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TrackEntity::class, PlaylistEntity::class, PlaylistTrackEntity::class, HistoryEntity::class, PlayEntity::class],
-    version = 3,
+    version = 4,
     exportSchema = true,
 )
 abstract class FireTubeDatabase : RoomDatabase() {
@@ -40,6 +40,13 @@ abstract class FireTubeDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `tracks` ADD COLUMN `album` TEXT")
+                db.execSQL("ALTER TABLE `tracks` ADD COLUMN `fileName` TEXT")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
     }
 }
