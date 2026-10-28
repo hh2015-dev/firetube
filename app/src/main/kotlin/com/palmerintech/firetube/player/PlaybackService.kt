@@ -23,6 +23,7 @@ import com.palmerintech.firetube.FireTubeApp
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.data.AudioQuality
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 import com.palmerintech.firetube.player.cast.CastItemConverter
 import com.palmerintech.firetube.ui.MainActivity
 import com.palmerintech.firetube.widget.WidgetUpdater
@@ -205,7 +206,11 @@ class PlaybackService : MediaLibraryService() {
             mediaItem ?: return
             // Gapless transitions keep isPlaying true, so onIsPlayingChanged won't fire for this item.
             if (player.isPlaying) recordCurrent()
-            if (MediaItems.isLive(mediaItem)) skipJob?.cancel() else startSponsorSkipping(mediaItem.mediaId)
+            val track = MediaItems.trackOf(mediaItem)
+            container.resolver.remember(track)
+            if (track.isLive || track.sourceId != TrackIdentity.YOUTUBE) {
+                skipJob?.cancel()
+            } else startSponsorSkipping(track.id, track.externalId)
             maybeExtendQueue()
             saveQueue()
         }
@@ -405,14 +410,14 @@ class PlaybackService : MediaLibraryService() {
         return count
     }
 
-    private fun startSponsorSkipping(videoId: String) {
+    private fun startSponsorSkipping(trackId: String, videoId: String) {
         skipJob?.cancel()
         skipJob = scope.launch {
             if (!container.settings.current().sponsorBlock) return@launch
             val segments = container.sponsorBlock.segments(videoId)
-            if (segments.isEmpty() || player.currentMediaItem?.mediaId != videoId) return@launch
+            if (segments.isEmpty() || player.currentMediaItem?.mediaId != trackId) return@launch
             crossfade.setSegments(segments)
-            while (isActive && player.currentMediaItem?.mediaId == videoId) {
+            while (isActive && player.currentMediaItem?.mediaId == trackId) {
                 val pos = player.currentPosition
                 segments.firstOrNull { pos in it && it.last - pos > 1000 }?.let {
                     crossfade.onSegmentSkip()
@@ -440,7 +445,7 @@ class PlaybackService : MediaLibraryService() {
         // Play may have been pressed meanwhile (e.g. on the widget); the session resumes the queue then.
         if (saved.tracks.isEmpty() || player.mediaItemCount > 0 || library.resuming) return
         player.setMediaItems(
-            saved.tracks.map { MediaItems.of(it.toTrack()) },
+            saved.tracks.map { MediaItems.of(it.toTrack().also(container.resolver::remember)) },
             saved.index.coerceIn(0, saved.tracks.lastIndex),
             saved.positionMs,
         )

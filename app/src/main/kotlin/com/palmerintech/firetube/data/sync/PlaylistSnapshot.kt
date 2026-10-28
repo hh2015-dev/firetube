@@ -3,6 +3,7 @@ package com.palmerintech.firetube.data.sync
 import com.palmerintech.firetube.data.LibraryRepository
 import com.palmerintech.firetube.data.db.PlaylistEntity
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 import kotlinx.serialization.Serializable
 
 /** A playlist as it's stored off-device (Firestore documents and backup files). */
@@ -26,11 +27,28 @@ data class TrackSnapshot(
     val artist: String = "",
     val duration: Long = 0,
     val thumb: String? = null,
+    val sourceId: String = TrackIdentity.YOUTUBE,
+    val externalId: String = id,
 ) {
-    fun toTrack() = Track(id, title, artist, duration, thumb)
+    fun toTrack() = Track(id, title, artist, duration, thumb, sourceId = sourceId, externalId = externalId)
+
+    internal fun toCloudMap(): Map<String, Any?> = mapOf(
+        "id" to id, "title" to title, "artist" to artist, "duration" to duration,
+        "thumb" to thumb, "sourceId" to sourceId, "externalId" to externalId,
+    )
 
     companion object {
-        fun of(t: Track) = TrackSnapshot(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl)
+        internal fun fromCloudMap(t: Map<String, Any?>) = TrackSnapshot(
+            id = t["id"] as String,
+            title = t["title"] as? String ?: "",
+            artist = t["artist"] as? String ?: "",
+            duration = (t["duration"] as? Number)?.toLong() ?: 0,
+            thumb = t["thumb"] as? String,
+            sourceId = t["sourceId"] as? String ?: TrackIdentity.YOUTUBE,
+            externalId = t["externalId"] as? String ?: t["id"] as String,
+        )
+
+        fun of(t: Track) = TrackSnapshot(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl, t.sourceId, t.externalId)
     }
 }
 

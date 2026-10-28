@@ -1,11 +1,13 @@
 package com.palmerintech.firetube.data.db
 
+import androidx.room.ColumnInfo
 import androidx.room.Embedded
 import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 
 /** Track metadata, shared by playlists, history and downloads. */
 @Entity(tableName = "tracks")
@@ -15,11 +17,13 @@ data class TrackEntity(
     val artist: String,
     val durationSeconds: Long,
     val thumbnailUrl: String?,
+    @ColumnInfo(defaultValue = "'youtube'") val sourceId: String = TrackIdentity.YOUTUBE,
+    @ColumnInfo(defaultValue = "''") val externalId: String = id,
 ) {
-    fun toTrack() = Track(id, title, artist, durationSeconds, thumbnailUrl)
+    fun toTrack() = Track(id, title, artist, durationSeconds, thumbnailUrl, sourceId = sourceId, externalId = externalId)
 
     companion object {
-        fun of(t: Track) = TrackEntity(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl)
+        fun of(t: Track) = TrackEntity(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl, t.sourceId, t.externalId)
     }
 }
 

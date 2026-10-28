@@ -2,8 +2,12 @@ package com.palmerintech.firetube.player
 
 import com.palmerintech.firetube.data.AudioQuality
 import com.palmerintech.firetube.extractor.Chapter
+import com.palmerintech.firetube.extractor.ExtractionException
 import com.palmerintech.firetube.extractor.ResolvedStream
 import com.palmerintech.firetube.extractor.StreamSource
+import com.palmerintech.firetube.extractor.AudioSourceRegistry
+import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,11 +26,30 @@ import java.util.concurrent.ConcurrentHashMap
  * expire. Concurrent requests for the same id share one network call.
  */
 class StreamResolver(
-    private val source: StreamSource,
+    private val sources: AudioSourceRegistry,
+    private val lookupIdentity: suspend (String) -> TrackIdentity? = { null },
     /** Chapters of downloaded songs, for those played without being resolved. */
     private val stored: ChapterStore? = null,
     private val quality: suspend () -> AudioQuality,
 ) {
+    constructor(source: StreamSource, stored: ChapterStore? = null, quality: suspend () -> AudioQuality) :
+        this(AudioSourceRegistry(listOf(source)), stored = stored, quality = quality)
+
+    private val identities = ConcurrentHashMap<String, TrackIdentity>()
+
+    fun remember(track: Track) {
+        // A controller may lose extras. Do not turn an unknown internal key into a YouTube id;
+        // let the persistent lookup recover it, or report missing identity at resolve time.
+        if (TrackIdentity.isGeneratedId(track.id) && track.sourceId == TrackIdentity.YOUTUBE) return
+        identities[track.id] = track.identity
+    }
+
+    private suspend fun identityOf(id: String): TrackIdentity = identities[id] ?: lookupIdentity(id)?.also {
+        identities[id] = it
+    } ?: if (TrackIdentity.isGeneratedId(id)) {
+        throw ExtractionException("Unknown track identity: $id")
+    } else TrackIdentity.youtube(id)
+
     private val cache = ConcurrentHashMap<String, ResolvedStream>()
     private val locks = ConcurrentHashMap<String, Mutex>()
 
@@ -40,7 +63,7 @@ class StreamResolver(
         if (!forceRefresh) fresh(key)?.let { return it }
         return locks.getOrPut(key) { Mutex() }.withLock {
             if (!forceRefresh) fresh(key)?.let { return@withLock it }
-            source.resolve(trackId, preferLowBitrate = q == AudioQuality.DATA_SAVER)
+            sources.resolve(identityOf(trackId), preferLowBitrate = q == AudioQuality.DATA_SAVER)
                 .also { cache[key] = it; keepChapters(trackId, it.chapters) }
         }
     }

@@ -2,7 +2,7 @@ package com.palmerintech.firetube.extractor
 
 /** A playable item (song / video) as FireTube sees it, independent of any extractor library. */
 data class Track(
-    /** Stable id — the YouTube video id. */
+    /** Opaque internal key. Legacy YouTube keys intentionally keep their original value. */
     val id: String,
     val title: String,
     /** As YouTube credits it, and as stored; show [credit] instead, it may be "X and 2 more". */
@@ -11,8 +11,12 @@ data class Track(
     val thumbnailUrl: String?,
     /** A live stream (no duration, can't be downloaded). Not stored: playback finds out again if lost. */
     val isLive: Boolean = false,
+    val sourceId: String = TrackIdentity.YOUTUBE,
+    val externalId: String = id,
 ) {
-    val url: String get() = "https://www.youtube.com/watch?v=$id"
+    val identity: TrackIdentity get() = TrackIdentity(id, sourceId, externalId)
+
+    val url: String? get() = if (sourceId == TrackIdentity.YOUTUBE) "https://www.youtube.com/watch?v=$externalId" else null
 
     val credit: ArtistCredit get() = ArtistCredit.parse(artist)
 }

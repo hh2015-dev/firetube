@@ -132,10 +132,12 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
                     container.downloads.remove(track.id); dismiss()
                 }
             }
-            MenuItem(Icons.Default.Share, stringResource(R.string.menu_share)) {
-                val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, track.url)
-                context.startActivity(Intent.createChooser(send, null))
-                dismiss()
+            track.url?.let { shareUrl ->
+                MenuItem(Icons.Default.Share, stringResource(R.string.menu_share)) {
+                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, shareUrl)
+                    context.startActivity(Intent.createChooser(send, null))
+                    dismiss()
+                }
             }
             if (target.removeLabel != null && target.onRemove != null) {
                 MenuItem(Icons.Default.Delete, target.removeLabel) { target.onRemove.invoke(); dismiss() }

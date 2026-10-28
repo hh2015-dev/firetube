@@ -12,6 +12,7 @@ import androidx.media3.exoplayer.scheduler.Scheduler
 import com.palmerintech.firetube.FireTubeApp
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -85,6 +86,7 @@ class Downloads(
     }
 
     fun download(track: Track) {
+        resolver.remember(track)
         val request = DownloadRequest.Builder(track.id, MediaItems.uriOf(track.id))
             .setData(json.encodeToString(StoredTrack.serializer(), StoredTrack.of(track)).encodeToByteArray())
             .build()
@@ -105,6 +107,7 @@ class Downloads(
                 val track = runCatching {
                     json.decodeFromString(StoredTrack.serializer(), d.request.data.decodeToString()).toTrack()
                 }.getOrNull() ?: continue
+                resolver.remember(track)
                 out[d.request.id] = DownloadInfo(track, d.state, d.percentDownloaded)
             }
         }
@@ -119,11 +122,11 @@ class Downloads(
     }
 
     @Serializable
-    private data class StoredTrack(val id: String, val title: String, val artist: String, val duration: Long, val thumb: String?) {
-        fun toTrack() = Track(id, title, artist, duration, thumb)
+    internal data class StoredTrack(val id: String, val title: String, val artist: String, val duration: Long, val thumb: String?, val sourceId: String = TrackIdentity.YOUTUBE, val externalId: String = id) {
+        fun toTrack() = Track(id, title, artist, duration, thumb, sourceId = sourceId, externalId = externalId)
 
         companion object {
-            fun of(t: Track) = StoredTrack(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl)
+            fun of(t: Track) = StoredTrack(t.id, t.title, t.artist, t.durationSeconds, t.thumbnailUrl, t.sourceId, t.externalId)
         }
     }
 

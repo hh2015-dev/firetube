@@ -111,7 +111,7 @@ class CloudSync(
         "updatedAt" to p.updatedAt,
         "deleted" to p.deleted,
         "sourceUrl" to p.sourceUrl,
-        "tracks" to p.tracks.map { mapOf("id" to it.id, "title" to it.title, "artist" to it.artist, "duration" to it.duration, "thumb" to it.thumb) },
+        "tracks" to p.tracks.map { it.toCloudMap() },
     )
 
     @Suppress("UNCHECKED_CAST")
@@ -123,13 +123,7 @@ class CloudSync(
         sourceUrl = d["sourceUrl"] as? String,
         // Realtime Database drops empty lists, so a missing "tracks" just means empty.
         tracks = (d["tracks"] as? List<Map<String, Any?>?>).orEmpty().filterNotNull().map { t ->
-            TrackSnapshot(
-                id = t["id"] as String,
-                title = t["title"] as? String ?: "",
-                artist = t["artist"] as? String ?: "",
-                duration = (t["duration"] as? Number)?.toLong() ?: 0,
-                thumb = t["thumb"] as? String,
-            )
+            TrackSnapshot.fromCloudMap(t)
         },
     )
 

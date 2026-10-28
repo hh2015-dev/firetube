@@ -10,6 +10,7 @@ import com.google.android.gms.cast.MediaMetadata
 import com.google.android.gms.cast.MediaQueueItem
 import com.google.android.gms.common.images.WebImage
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 import com.palmerintech.firetube.player.MediaItems
 import org.json.JSONObject
 
@@ -42,6 +43,8 @@ class CastItemConverter(private val server: CastProxyServer) : MediaItemConverte
             .setCustomData(
                 JSONObject()
                     .put(KEY_ID, track.id)
+                    .put("sourceId", track.sourceId)
+                    .put("externalId", track.externalId)
                     .put(KEY_DURATION, track.durationSeconds)
                     .put(KEY_THUMB, track.thumbnailUrl ?: "")
                     .put(KEY_LIVE, track.isLive),
@@ -64,6 +67,8 @@ class CastItemConverter(private val server: CastProxyServer) : MediaItemConverte
                 artist = metadata?.getString(MediaMetadata.KEY_ARTIST).orEmpty(),
                 durationSeconds = custom?.optLong(KEY_DURATION) ?: 0,
                 thumbnailUrl = custom?.optString(KEY_THUMB)?.takeIf { it.isNotEmpty() },
+                sourceId = custom?.optString("sourceId")?.takeIf { it.isNotEmpty() } ?: TrackIdentity.YOUTUBE,
+                externalId = custom?.optString("externalId")?.takeIf { it.isNotEmpty() } ?: id,
                 isLive = custom?.takeIf { it.has(KEY_LIVE) }?.optBoolean(KEY_LIVE) ?: (info?.streamType == MediaInfo.STREAM_TYPE_LIVE),
             ),
         )

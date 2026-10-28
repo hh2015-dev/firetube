@@ -7,6 +7,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.MimeTypes
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 
 /** Conversions between FireTube [Track]s and Media3 [MediaItem]s. */
 object MediaItems {
@@ -18,8 +19,10 @@ object MediaItems {
 
     /** In the metadata extras, which (unlike the URI) reach controllers and survive Android Auto. */
     private const val EXTRA_LIVE = "firetube.live"
+    private const val EXTRA_SOURCE = "firetube.source"
+    private const val EXTRA_EXTERNAL_ID = "firetube.externalId"
 
-    fun uriOf(trackId: String, live: Boolean = false): Uri = "$SCHEME://${if (live) LIVE_HOST else HOST}/$trackId".toUri()
+    fun uriOf(trackId: String, live: Boolean = false): Uri = Uri.Builder().scheme(SCHEME).authority(if (live) LIVE_HOST else HOST).appendPath(trackId).build()
 
     fun trackIdOf(uri: Uri): String? =
         if (uri.scheme == SCHEME && (uri.host == HOST || uri.host == LIVE_HOST)) uri.lastPathSegment else null
@@ -41,7 +44,11 @@ object MediaItems {
                 .setIsPlayable(true)
                 .setIsBrowsable(false)
                 .setMediaType(MediaMetadata.MEDIA_TYPE_MUSIC)
-                .apply { if (track.isLive) setExtras(Bundle().apply { putBoolean(EXTRA_LIVE, true) }) }
+                .setExtras(Bundle().apply {
+                    if (track.isLive) putBoolean(EXTRA_LIVE, true)
+                    putString(EXTRA_SOURCE, track.sourceId)
+                    putString(EXTRA_EXTERNAL_ID, track.externalId)
+                })
                 .build(),
         )
         .build()
@@ -64,6 +71,8 @@ object MediaItems {
             durationSeconds = (m.durationMs ?: 0L) / 1000,
             thumbnailUrl = m.artworkUri?.toString(),
             isLive = isLive(item),
+            sourceId = m.extras?.getString(EXTRA_SOURCE) ?: TrackIdentity.YOUTUBE,
+            externalId = m.extras?.getString(EXTRA_EXTERNAL_ID) ?: item.mediaId,
         )
     }
 }

@@ -47,9 +47,10 @@ class LibraryCallback(
                     ?: runCatching { container.resolver.resolve(item.mediaId).track }.getOrNull())
                     ?.let(MediaItems::of) ?: MediaItems.withUri(item)
             }
-        }.toMutableList().also {
+        }.toMutableList().also { items ->
+            items.forEach { container.resolver.remember(MediaItems.trackOf(it)) }
             // An empty result would replace the queue with nothing (e.g. a misheard voice search).
-            if (it.isEmpty()) throw UnsupportedOperationException("Nothing to play")
+            if (items.isEmpty()) throw UnsupportedOperationException("Nothing to play")
         }
     }
 
@@ -70,7 +71,11 @@ class LibraryCallback(
         isForPlayback: Boolean,
     ): ListenableFuture<MediaSession.MediaItemsWithStartPosition> {
         if (isForPlayback) resuming = true
-        return scope.future { resumptionOf(container.queueStore.load()) }
+        return scope.future {
+            val saved = container.queueStore.load()
+            saved?.tracks?.forEach { container.resolver.remember(it.toTrack()) }
+            resumptionOf(saved)
+        }
     }
 
     override fun onGetLibraryRoot(

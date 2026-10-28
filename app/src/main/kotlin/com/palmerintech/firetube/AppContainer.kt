@@ -15,6 +15,7 @@ import com.palmerintech.firetube.data.sync.Backup
 import com.palmerintech.firetube.data.sync.CloudSync
 import com.palmerintech.firetube.extractor.NewPipeStreamSource
 import com.palmerintech.firetube.extractor.StreamSource
+import com.palmerintech.firetube.extractor.AudioSourceRegistry
 import com.palmerintech.firetube.lyrics.Lyrics
 import com.palmerintech.firetube.player.ChapterStore
 import com.palmerintech.firetube.player.Downloads
@@ -56,7 +57,10 @@ class AppContainer(val app: Application) {
     val library = LibraryRepository(database.library())
 
     // Same synchronous source as the song-cache key, so URL bitrate and cache key always agree.
-    val resolver by lazy { StreamResolver(source, chapterStore) { settings.audioQualityNow() } }
+    val sources by lazy { AudioSourceRegistry(listOf(source)) }
+    val resolver by lazy {
+        StreamResolver(sources, { library.knownTrack(it)?.identity }, chapterStore) { settings.audioQualityNow() }
+    }
     private val chapterStore by lazy { ChapterStore(File(app.filesDir, "chapters")) }
     val mediaStack by lazy {
         MediaStack(app, httpClient, resolver, settings.cacheSizeMbNow()) { settings.audioQualityNow().name }

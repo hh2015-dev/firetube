@@ -9,7 +9,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
     entities = [TrackEntity::class, PlaylistEntity::class, PlaylistTrackEntity::class, HistoryEntity::class, PlayEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class FireTubeDatabase : RoomDatabase() {
@@ -31,6 +31,15 @@ abstract class FireTubeDatabase : RoomDatabase() {
             }
         }
 
-        val MIGRATIONS = arrayOf(MIGRATION_1_2)
+        /** Add provider metadata in place. Never rewrite keys or invalidate cached audio. */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `tracks` ADD COLUMN `sourceId` TEXT NOT NULL DEFAULT 'youtube'")
+                db.execSQL("ALTER TABLE `tracks` ADD COLUMN `externalId` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE `tracks` SET `externalId` = `id`")
+            }
+        }
+
+        val MIGRATIONS = arrayOf(MIGRATION_1_2, MIGRATION_2_3)
     }
 }
