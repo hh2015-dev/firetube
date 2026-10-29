@@ -1,0 +1,26 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only -->
+<html lang="en">
+<meta charset="utf-8">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>FireTube Drive proof of concept — test account only</title>
+<h1>Drive Picker proof of concept</h1>
+<p>Separate browser experiment. No FireTube integration. Use a dedicated test account and private test audio files.
+  Tokens stay in page memory. Closing/clearing this page does not revoke Google's grant.</p>
+<p>Enter public configuration from one Google Cloud project. Never enter a client secret, access token, or service-account key.</p>
+<form id="configuration" autocomplete="off">
+  <p><label>Web OAuth client ID <input id="client" required size="65"></label></p>
+  <p><label>Project number (Picker app ID) <input id="project" required inputmode="numeric"></label></p>
+  <p><label>Restricted Picker API key <input id="key" required size="45"></label></p>
+  <button id="connect" disabled>Authorize drive.file and choose existing audio files</button>
+</form>
+<p><button id="clear" type="button">Clear in-memory session</button></p>
+<p id="status" role="status">Loading Google's scripts. Network access and Cloud configuration are required.</p>
+<ul id="files"></ul>
+<p>Negative control: use the ID of a private file never selected or previously granted to this project.
+  An already granted file is not a valid negative control. Do not select it in Picker.</p>
+<label>Unselected test file ID <input id="unselected" autocomplete="off"></label>
+<button id="negative" type="button">Probe metadata access</button>
+<pre id="result"></pre>
+<script type="module" src="browser.mjs"></script>
+</html>
