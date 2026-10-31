@@ -126,7 +126,7 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
 
     private fun blocksLocalCast(controller: MediaController, tracks: List<Track>): Boolean {
         val blocked = controller.deviceInfo.playbackType == androidx.media3.common.DeviceInfo.PLAYBACK_TYPE_REMOTE &&
-            tracks.any { it.sourceId == TrackIdentity.LOCAL }
+            tracks.any { it.sourceId == TrackIdentity.LOCAL || it.sourceId == TrackIdentity.DOCUMENT }
         if (blocked) _state.value = _state.value.copy(localCastBlocked = true)
         return blocked
     }
@@ -191,7 +191,7 @@ class PlayerConnection(private val context: Context, private val scope: Coroutin
             hasPrevious = p.hasPreviousMediaItem(),
             speed = p.playbackParameters.speed,
             connected = true,
-            localPlaybackError = p.playerError != null && current?.sourceId == TrackIdentity.LOCAL,
+            localPlaybackError = p.playerError != null && (current?.sourceId == TrackIdentity.LOCAL || current?.sourceId == TrackIdentity.DOCUMENT),
         )
         if (p.isPlaying) startTicker(p) else ticker?.cancel()
     }
