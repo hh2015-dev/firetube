@@ -86,7 +86,7 @@ class Downloads(
     }
 
     fun download(track: Track) {
-        if (track.sourceId == TrackIdentity.LOCAL) return // Already on the device; never duplicate its bytes.
+        if (track.sourceId != TrackIdentity.YOUTUBE) return // No copying provider-granted files into the HTTP download cache.
         resolver.remember(track)
         val request = DownloadRequest.Builder(track.id, MediaItems.uriOf(track.id))
             .setData(json.encodeToString(StoredTrack.serializer(), StoredTrack.of(track)).encodeToByteArray())
