@@ -59,7 +59,8 @@ class AppContainer(val app: Application) {
 
     // Same synchronous source as the song-cache key, so URL bitrate and cache key always agree.
     val localAudio by lazy { LocalAudio(app) }
-    val sources by lazy { AudioSourceRegistry(listOf(source, localAudio)) }
+    val documentAudio by lazy { com.palmerintech.firetube.local.DocumentAudio(app) }
+    val sources by lazy { AudioSourceRegistry(listOf(source, localAudio, documentAudio)) }
     val resolver by lazy {
         StreamResolver(sources, { library.knownTrack(it)?.identity }, chapterStore) { settings.audioQualityNow() }
     }
