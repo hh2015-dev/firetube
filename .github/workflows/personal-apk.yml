@@ -1,0 +1,54 @@
+# Personal Android build verification only.
+# No Play Store publishing, GitHub Release, or public APK artifact upload.
+name: FireTube personal APK build check
+
+on:
+  push:
+    branches:
+      - dev/personal-apk
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firetube-personal-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify-debug-apk:
+    if: github.repository == 'hh2015-dev/firetube' && github.ref == 'refs/heads/dev/personal-apk'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests, lint, and debug APK build
+        run: ./gradlew :core:extractor:test testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace
+
+      - name: Verify APK without publishing it
+        shell: bash
+        run: |
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          bytes=$(wc -c < "$apk")
+          digest=$(sha256sum "$apk" | cut -d ' ' -f 1)
+          echo "Debug APK bytes: $bytes"
+          echo "Debug APK SHA-256: $digest"
+          {
+            echo "### FireTube personal Android build"
+            echo ""
+            echo "- Result: APK compiled successfully"
+            echo "- Size: $bytes bytes"
+            echo "- SHA-256: `$digest`"
+            echo "- APK not uploaded or published: public repository, private-use requirement"
+          } >> "$GITHUB_STEP_SUMMARY"
