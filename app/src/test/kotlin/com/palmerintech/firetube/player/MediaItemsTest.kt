@@ -5,6 +5,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -53,6 +54,23 @@ class MediaItemsTest {
     fun songsSurviveLosingTheUri() {
         val bare = MediaItem.fromBundle(MediaItems.of(song).toBundle())
         assertEquals(MediaItems.uriOf("song"), MediaItems.withUri(bare).localConfiguration?.uri)
+    }
+
+    @Test
+    fun documentAudioKeepsIdentityThroughMedia3ControllerRoundTrip() {
+        val identity = TrackIdentity.forSource(TrackIdentity.DOCUMENT, "content://com.example.documents/document/audio%3A1")
+        val track = Track(identity.id, "صوت • Ελληνικά", "", 0, null,
+            sourceId = TrackIdentity.DOCUMENT, externalId = identity.externalId)
+        val item = MediaItems.of(track)
+        val uri = item.localConfiguration!!.uri
+        assertTrue(MediaItems.isDocumentUri(uri))
+        assertFalse(MediaItems.isLocalUri(uri))
+        assertEquals(identity.id, MediaItems.trackIdOf(uri))
+        val bare = MediaItem.fromBundle(item.toBundle())
+        val restored = MediaItems.withUri(bare)
+        assertEquals(uri, restored.localConfiguration?.uri)
+        assertEquals(TrackIdentity.DOCUMENT, MediaItems.trackOf(restored).sourceId)
+        assertEquals(identity.externalId, MediaItems.trackOf(restored).externalId)
     }
 
     @Test
