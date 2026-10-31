@@ -52,6 +52,6 @@ class MediaStack(
                 .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR),
         )
     val playbackFactory: DataSource.Factory = DataSource.Factory {
-        PlaybackDataSource(cachedFactory.createDataSource(), LocalPlaybackDataSource(context, resolver))
+        PlaybackDataSource(cachedFactory.createDataSource(), LocalPlaybackDataSource(context, resolver), DocumentPlaybackDataSource(context, resolver))
     }
 }
