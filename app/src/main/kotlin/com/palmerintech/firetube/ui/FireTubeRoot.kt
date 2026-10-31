@@ -106,6 +106,7 @@ import kotlin.reflect.KClass
 @Serializable data class RemotePlaylistRoute(val url: String)
 @Serializable data class TrackListRoute(val list: String)
 @Serializable data object LocalAudioRoute
+@Serializable data object SoundCloudWidgetRoute
 @Serializable data object StatsRoute
 
 private data class Tab(val route: Any, val routeClass: KClass<*>, @StringRes val label: Int, val icon: ImageVector, val selectedIcon: ImageVector)
@@ -277,10 +278,12 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                             onOpenRemotePlaylist = { nav.navigate(RemotePlaylistRoute(it)) },
                             onOpenStats = { nav.navigate(StatsRoute) },
                             onOpenLocal = { nav.navigate(LocalAudioRoute) },
+                            onOpenSoundCloud = { nav.navigate(SoundCloudWidgetRoute) },
                             content,
                         )
                     }
                     composable<LocalAudioRoute> { com.palmerintech.firetube.ui.library.LocalAudioScreen(container, { nav.popBackStack() }, content) }
+                    composable<SoundCloudWidgetRoute> { com.palmerintech.firetube.ui.library.SoundCloudWidgetScreen({ nav.popBackStack() }, content) }
                     composable<SettingsRoute> { SettingsScreen(container, onBack = { nav.popBackStack() }, showMessage, content) }
                     composable<PlaylistRoute> { entry ->
                         PlaylistScreen(container, entry.toRoute<PlaylistRoute>().id, onBack = { nav.popBackStack() }, content)
