@@ -4,6 +4,13 @@ import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -51,11 +58,35 @@ fun LocalAudioScreen(container: AppContainer, onBack: () -> Unit, contentPadding
     val context = LocalContext.current
     val menu = LocalTrackMenu.current
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { vm.refresh() }
+    val scope = rememberCoroutineScope()
+    var documentError by remember { mutableStateOf(false) }
+    val documentPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) {
+            scope.launch {
+                documentError = false
+                val tracks = try {
+                    withContext(Dispatchers.IO) { container.documentAudio.importSelected(uris) }
+                } catch (_: Exception) { emptyList() }
+                if (tracks.isNotEmpty()) {
+                    container.library.saveTracks(tracks)
+                    container.player.play(tracks)
+                    if (tracks.size != uris.distinct().size) documentError = true
+                } else documentError = true
+            }
+        }
+    }
     LifecycleResumeEffect(Unit) { vm.refresh(); onPauseOrDispose { } }
     Column {
         TopAppBar(title = { Text(stringResource(R.string.local_audio_title)) },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) } },
             actions = { IconButton(onClick = vm::refresh) { Icon(Icons.Default.Refresh, stringResource(R.string.local_audio_refresh)) } })
+        Button(onClick = { documentPicker.launch(arrayOf("audio/*", "application/ogg", "application/x-flac")) },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+            Text(stringResource(R.string.document_audio_choose))
+        }
+        Text(stringResource(R.string.document_audio_hint), modifier = Modifier.padding(horizontal = 16.dp))
+        if (documentError) Text(stringResource(R.string.document_audio_failed),
+            modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
         when (val current = state) {
             LocalAudioState.Permission -> Column(Modifier.padding(16.dp)) {
                 Text(stringResource(R.string.local_audio_permission))
