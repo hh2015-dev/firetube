@@ -96,6 +96,7 @@ fun LibraryScreen(
     onOpenRemotePlaylist: (String) -> Unit,
     onOpenStats: () -> Unit,
     onOpenLocal: () -> Unit,
+    onOpenSoundCloud: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     val playlists by container.library.playlists.collectAsState(emptyList())
@@ -116,6 +117,7 @@ fun LibraryScreen(
                     }
                 }
                 item { ListItemRow(Icons.Default.LibraryMusic, stringResource(R.string.local_audio_title), onClick = onOpenLocal) }
+                item { ListItemRow(Icons.Default.Link, stringResource(R.string.soundcloud_title), onClick = onOpenSoundCloud) }
                 item { ListItemRow(Icons.Default.History, stringResource(R.string.library_recently_played)) { onOpenList(TrackList.HISTORY) } }
                 item { ListItemRow(Icons.Default.BarChart, stringResource(R.string.stats_title), stringResource(R.string.library_stats_summary), onOpenStats) }
                 item { SectionHeader(stringResource(R.string.library_playlists)) }
