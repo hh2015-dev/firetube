@@ -366,4 +366,7 @@
     <string name="local_audio_empty">No indexed audio files found. Copy music to the device and refresh.</string>
     <string name="local_audio_unavailable">This file is unavailable or unsupported. Check audio permission, its location and format.</string>
     <string name="local_audio_cast">Disconnect Chromecast before playing local files.</string>
+    <string name="document_audio_choose">Select audio from Files or Google Drive</string>
+    <string name="document_audio_hint">Choose files with the Android picker. Google Drive appears if available on this device, using the account signed in there.</string>
+    <string name="document_audio_failed">One or more selected files could not be opened. Check provider, format and read permission.</string>
 </resources>
