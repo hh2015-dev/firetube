@@ -259,7 +259,7 @@ class PlaybackService : MediaLibraryService() {
         override fun onPlayerError(error: PlaybackException) {
             val item = player.currentMediaItem ?: return
             Timber.w(error, "Playback error on %s", item.mediaId)
-            if (MediaItems.trackOf(item).sourceId == TrackIdentity.LOCAL) {
+            if (MediaItems.trackOf(item).sourceId in listOf(TrackIdentity.LOCAL, TrackIdentity.DOCUMENT)) {
                 player.pause() // Preserve the queue and surface the error; never crash or delete library rows.
                 return
             }
