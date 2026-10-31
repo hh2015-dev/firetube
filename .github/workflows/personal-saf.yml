@@ -1,0 +1,36 @@
+# Experimental Android SAF validation. Do not publish or upload artifacts.
+name: Personal SAF debug verification
+
+on:
+  push:
+    branches:
+      - dev/personal-saf
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-saf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    if: github.repository == 'hh2015-dev/firetube' && github.ref == 'refs/heads/dev/personal-saf'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build, test, lint
+        run: ./gradlew :core:extractor:test testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace
+      - name: Confirm APK, without upload or release
+        run: |
+          apk=app/build/outputs/apk/debug/app-debug.apk
+          test -s "$apk"
+          echo "APK size bytes: $(wc -c < "$apk")"
+          sha256sum "$apk"
+          echo "Compiled locally in runner only; no APK artifact published." >> "$GITHUB_STEP_SUMMARY"
