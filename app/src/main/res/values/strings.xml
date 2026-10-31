@@ -369,4 +369,9 @@
     <string name="document_audio_choose">Select audio from Files or Google Drive</string>
     <string name="document_audio_hint">Choose files with the Android picker. Google Drive appears if available on this device, using the account signed in there.</string>
     <string name="document_audio_failed">One or more selected files could not be opened. Check provider, format and read permission.</string>
+    <string name="soundcloud_title">SoundCloud (official player)</string>
+    <string name="soundcloud_note">Paste a public SoundCloud track or playlist link. SoundCloud plays in its own official widget, not in FireTube\'s media queue. Background playback is not guaranteed.</string>
+    <string name="soundcloud_link">SoundCloud URL (https://soundcloud.com/…)</string>
+    <string name="soundcloud_invalid">Enter a valid SoundCloud track or playlist URL.</string>
+    <string name="soundcloud_open">Open player</string>
 </resources>
