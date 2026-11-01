@@ -113,7 +113,7 @@ class DriveLibrary(
      */
     suspend fun downloadSelected(entry: DriveEntry, onBytes: (Long) -> Unit = {}): File = withContext(Dispatchers.IO) {
         require(entry.isAudio && entry.canDownload) { "This Drive item is not downloadable audio" }
-        val file = audioFile(entry.id)
+        val file = audioFile(entry.effectiveId)
         if (file.isFile && file.length() > 0) return@withContext file
         val expected = entry.size?.toLongOrNull()
         if (expected != null && expected > context.noBackupFilesDir.usableSpace - 10_000_000L)
@@ -122,7 +122,7 @@ class DriveLibrary(
         // A previous interrupted attempt must not be trusted or shown as offline.
         partial.delete()
         try {
-            val url = "$BASE/${entry.id}?alt=media&supportsAllDrives=true"
+            val url = "$BASE/${entry.effectiveId}?alt=media&supportsAllDrives=true"
             fun request(token: String) = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
             var response = client.newCall(request(access.bearerToken())).execute()
             if (response.code == 401) {
