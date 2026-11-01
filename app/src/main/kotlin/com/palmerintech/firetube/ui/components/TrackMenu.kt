@@ -211,7 +211,7 @@ private fun DownloadQualityDialog(container: AppContainer, track: Track, onCance
                                 )
                                 Text(
                                     option.sizeBytes?.let {
-                                        val mb = "%.1f".format(java.util.Locale.getDefault(), it / 1_000_000.0)
+                                        val mb = "%.1f".format(java.util.Locale.ROOT, it / 1_000_000.0)
                                         if (option.sizeEstimated) "~$mb MB (estimate)" else "$mb MB"
                                     } ?: "Size unknown",
                                     style = MaterialTheme.typography.bodySmall,
