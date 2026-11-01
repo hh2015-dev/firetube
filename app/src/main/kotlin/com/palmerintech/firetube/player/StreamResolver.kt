@@ -1,6 +1,7 @@
 package com.palmerintech.firetube.player
 
 import com.palmerintech.firetube.data.AudioQuality
+import com.palmerintech.firetube.extractor.DownloadVariant
 import com.palmerintech.firetube.extractor.Chapter
 import com.palmerintech.firetube.extractor.ExtractionException
 import com.palmerintech.firetube.extractor.ResolvedStream
@@ -68,6 +69,21 @@ class StreamResolver(
         }
     }
 
+    /** Query the provider for its real audio formats before offering a download. */
+    suspend fun downloadVariants(trackId: String): List<DownloadVariant> =
+        sources.downloadVariants(identityOf(trackId))
+
+    /** Per-download quality must never change the quality of normal playback. */
+    suspend fun resolveDownloadVariant(trackId: String, variantId: String, forceRefresh: Boolean = false): ResolvedStream {
+        val key = "offline:$trackId@$variantId"
+        if (!forceRefresh) fresh(key)?.let { return it }
+        return locks.getOrPut(key) { Mutex() }.withLock {
+            if (!forceRefresh) fresh(key)?.let { return@withLock it }
+            sources.resolveDownloadVariant(identityOf(trackId), variantId, forceRefresh)
+                .also { cache[key] = it; keepChapters(trackId, it.chapters) }
+        }
+    }
+
     /** Related tracks from the last resolution, if any (used for autoplay without another request). */
     fun cachedRelated(trackId: String) = AudioQuality.entries.firstNotNullOfOrNull { cache["$trackId@$it"] }?.related
 
@@ -102,6 +118,7 @@ class StreamResolver(
 
     fun invalidate(trackId: String) {
         AudioQuality.entries.forEach { cache.remove("$trackId@$it") }
+        cache.keys.removeAll { it.startsWith("offline:$trackId@") }
     }
 
     /** Drops every resolved URL, e.g. after the audio quality setting changes. */
