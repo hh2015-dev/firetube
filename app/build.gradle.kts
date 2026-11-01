@@ -151,6 +151,8 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play)
     implementation(libs.googleid)
+    // Required for Android's first-party, user-consented Drive read-only authorization.
+    implementation("com.google.android.gms:play-services-auth:21.1.1")
 
     implementation(libs.timber)
 
