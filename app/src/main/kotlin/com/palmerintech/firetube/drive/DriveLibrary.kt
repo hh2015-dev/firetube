@@ -26,6 +26,8 @@ class DriveLibrary(
 ) {
     companion object {
         const val ROOT = "root"
+        const val SHARED_WITH_ME = "virtual:shared-with-me"
+        const val SHARED_DRIVES = "virtual:shared-drives"
         private const val BASE = "https://www.googleapis.com/drive/v3/files"
         private const val FIELDS =
             "nextPageToken,incompleteSearch,files(id,name,mimeType,parents,size,modifiedTime,capabilities(canDownload),shortcutDetails(targetId,targetMimeType))"
@@ -55,18 +57,30 @@ class DriveLibrary(
         }.getOrDefault(emptyList())
     }
 
-    suspend fun list(folderId: String): List<DriveEntry> = withContext(Dispatchers.IO) {
+    suspend fun list(folderId: String, driveId: String? = null): List<DriveEntry> = withContext(Dispatchers.IO) {
+        if (folderId == SHARED_DRIVES) {
+            val drives = listSharedDrives()
+            saveListing(folderId, drives)
+            return@withContext drives
+        }
         val result = mutableListOf<DriveEntry>()
         var cursor: String? = null
         val visited = mutableSetOf<String>()
         do {
             currentCoroutineContext().ensureActive()
+            val where = if (folderId == SHARED_WITH_ME) "sharedWithMe = true and trashed = false"
+                else "'${folderId.replace("\\", "\\\\").replace("'", "\\'")}' in parents and trashed = false"
             val builder = BASE.toHttpUrl().newBuilder()
-                .addQueryParameter("q", "'${folderId.replace("\\", "\\\\").replace("'", "\\'")}' in parents and trashed = false")
+                .addQueryParameter("q", where)
                 .addQueryParameter("pageSize", "1000")
                 .addQueryParameter("fields", FIELDS)
                 .addQueryParameter("supportsAllDrives", "true")
                 .addQueryParameter("includeItemsFromAllDrives", "true")
+            if (driveId != null) {
+                builder.addQueryParameter("corpora", "drive").addQueryParameter("driveId", driveId)
+            } else {
+                builder.addQueryParameter("corpora", "user")
+            }
             if (cursor != null) builder.addQueryParameter("pageToken", cursor)
             val page = json.decodeFromString<DrivePage>(getText(builder.build().toString()))
             if (page.incompleteSearch) throw IOException("Drive returned an incomplete folder listing")
@@ -75,7 +89,16 @@ class DriveLibrary(
             if (cursor != null && !visited.add(cursor)) throw IOException("Repeated Drive page token")
             if (visited.size >= 100) throw IOException("Drive folder too large to list safely")
         } while (cursor != null)
-        val visible = DriveAudioTypes.visible(result)
+        val virtual = if (folderId == ROOT) listOf(
+            DriveEntry(SHARED_WITH_ME, "Shared with me", DriveEntry.FOLDER_MIME),
+            DriveEntry(SHARED_DRIVES, "Shared drives", DriveEntry.FOLDER_MIME),
+        ) else emptyList()
+        val visible = virtual + DriveAudioTypes.visible(result)
+        saveListing(folderId, visible)
+        visible
+    }
+
+    private fun saveListing(folderId: String, visible: List<DriveEntry>) {
         val file = AtomicFile(cachedFile(folderId))
         val output = file.startWrite()
         try {
@@ -85,7 +108,26 @@ class DriveLibrary(
             file.failWrite(output)
             throw e
         }
-        visible
+    }
+
+    /** Each shared drive is a browsable root; subsequent requests use corpora=drive. */
+    private suspend fun listSharedDrives(): List<DriveEntry> {
+        val found = mutableListOf<DriveEntry>()
+        var pageToken: String? = null
+        val seen = mutableSetOf<String>()
+        do {
+            currentCoroutineContext().ensureActive()
+            val url = "https://www.googleapis.com/drive/v3/drives".toHttpUrl().newBuilder()
+                .addQueryParameter("pageSize", "100")
+                .addQueryParameter("fields", "nextPageToken,drives(id,name)")
+            if (pageToken != null) url.addQueryParameter("pageToken", pageToken)
+            val page = json.decodeFromString<DriveListPage>(getText(url.build().toString()))
+            found.addAll(page.drives.map { DriveEntry(it.id, it.name, DriveEntry.FOLDER_MIME) })
+            pageToken = page.nextPageToken
+            if (pageToken != null && !seen.add(pageToken)) throw IOException("Repeated shared-drive page token")
+            if (seen.size >= 100) throw IOException("Too many shared-drive pages")
+        } while (pageToken != null)
+        return DriveAudioTypes.visible(found)
     }
 
     private suspend fun getText(url: String): String = withContext(Dispatchers.IO) {
@@ -166,3 +208,9 @@ class DriveLibrary(
 
 @Serializable
 private data class DriveSnapshot(val entries: List<DriveEntry>)
+
+@Serializable
+private data class DriveListPage(val drives: List<DriveInfo> = emptyList(), val nextPageToken: String? = null)
+
+@Serializable
+private data class DriveInfo(val id: String, val name: String)
