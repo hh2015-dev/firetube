@@ -32,6 +32,8 @@ class DriveLibrary(
     }
 
     private val json = Json { ignoreUnknownKeys = true }
+    /** No OAuth-bearing request may follow redirects to an unverified host. */
+    private val safeClient = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
     private fun accountDirectory(): File {
         val namespace = access.namespace ?: throw IOException("Connect Google Drive first")
@@ -88,10 +90,10 @@ class DriveLibrary(
 
     private suspend fun getText(url: String): String = withContext(Dispatchers.IO) {
         fun request(token: String) = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
-        var response = client.newCall(request(access.bearerToken())).execute()
+        var response = safeClient.newCall(request(access.bearerToken())).execute()
         if (response.code == 401) {
             response.close()
-            response = client.newCall(request(access.refreshToken())).execute()
+            response = safeClient.newCall(request(access.refreshToken())).execute()
         }
         response.use {
             if (!it.isSuccessful) throw IOException("Google Drive listing failed (HTTP ${it.code})")
@@ -124,10 +126,10 @@ class DriveLibrary(
         try {
             val url = "$BASE/${entry.effectiveId}?alt=media&supportsAllDrives=true"
             fun request(token: String) = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
-            var response = client.newCall(request(access.bearerToken())).execute()
+            var response = safeClient.newCall(request(access.bearerToken())).execute()
             if (response.code == 401) {
                 response.close()
-                response = client.newCall(request(access.refreshToken())).execute()
+                response = safeClient.newCall(request(access.refreshToken())).execute()
             }
             response.use {
                 if (!it.isSuccessful) throw IOException("Drive audio download failed (HTTP ${it.code})")
