@@ -346,4 +346,13 @@
     <string name="soundcloud_link">URL de SoundCloud (https://soundcloud.com/…)</string>
     <string name="soundcloud_invalid">Introduce un enlace válido de pista o lista de SoundCloud.</string>
     <string name="soundcloud_open">Abrir reproductor</string>
+
+    <string name="drive_library_title">Audio de Google Drive</string>
+    <string name="drive_connect">Conectar Google Drive</string>
+    <string name="drive_connect_hint">Acceso de solo lectura. Explora tus carpetas; nada se reproduce ni se descarga sin que lo elijas. El audio guardado funciona sin conexión.</string>
+    <string name="drive_empty">No hay audios en esta carpeta o todavía no hay una lista guardada.</string>
+    <string name="drive_available_offline">Guardado para escuchar sin conexión</string>
+    <string name="drive_play">Reproducir audio seleccionado</string>
+    <string name="drive_download">Descargar para escuchar sin conexión</string>
+    <string name="drive_remove_offline">Quitar copia descargada</string>
 </resources>
