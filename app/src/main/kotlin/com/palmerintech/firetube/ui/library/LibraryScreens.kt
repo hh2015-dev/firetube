@@ -385,9 +385,9 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
                                     else "…",
                                     style = MaterialTheme.typography.labelMedium,
                                 )
-                                val transferred = "%.1f".format(java.util.Locale.getDefault(), d.bytesDownloaded / 1_000_000.0)
+                                val transferred = "%.1f".format(java.util.Locale.ROOT, d.bytesDownloaded / 1_000_000.0)
                                 val total = if (d.sizeBytes > 0) {
-                                    "%.1f".format(java.util.Locale.getDefault(), d.sizeBytes / 1_000_000.0)
+                                    "%.1f".format(java.util.Locale.ROOT, d.sizeBytes / 1_000_000.0)
                                 } else null
                                 Text(
                                     if (total == null) "$transferred MB" else "$transferred / $total MB",
@@ -395,7 +395,7 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
                                 )
                                 if (d.bytesPerSecond > 0) {
                                     Text(
-                                        "%.2f MB/s".format(java.util.Locale.getDefault(), d.bytesPerSecond / 1_000_000.0),
+                                        "%.2f MB/s".format(java.util.Locale.ROOT, d.bytesPerSecond / 1_000_000.0),
                                         style = MaterialTheme.typography.labelSmall,
                                     )
                                 }
