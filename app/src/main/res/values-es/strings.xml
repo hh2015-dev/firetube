@@ -354,5 +354,20 @@
     <string name="drive_available_offline">Guardado para escuchar sin conexión</string>
     <string name="drive_play">Reproducir audio seleccionado</string>
     <string name="drive_download">Descargar para escuchar sin conexión</string>
+    <string name="drive_download_folder">Descargar carpeta completa para escuchar sin conexión</string>
+    <string name="drive_scanning_folder">Preparando la carpeta seleccionada…</string>
+    <string name="drive_folder_confirm_title">¿Descargar toda la carpeta?</string>
+    <string name="drive_folder_confirm_summary">%1$d audios en %2$d carpetas. Se omitirán %3$d archivos restringidos. Tamaño conocido: %4$s (%5$d archivos sin tamaño conocido). Se reutilizarán los archivos ya guardados.</string>
+    <string name="drive_folder_no_audio">No se encontraron audios que se puedan descargar.</string>
+    <string name="drive_folder_scan_failed">No se pudieron revisar todas las subcarpetas. No se descargó nada.</string>
+    <string name="drive_folder_start">Descargar carpeta</string>
+    <string name="drive_folder_progress_title">Descargando carpeta</string>
+    <string name="drive_folder_progress">%1$d de %2$d archivos procesados. %3$d descargados, %4$d ya guardados, %5$d fallidos. Último archivo: %6$s</string>
+    <string name="drive_folder_cancel">Detener descarga</string>
+    <string name="drive_folder_cancelled">Descarga detenida. Los archivos completos permanecen disponibles sin conexión.</string>
+    <string name="drive_folder_download_failed">La descarga se detuvo por un error. Los archivos completos permanecen disponibles sin conexión.</string>
+    <string name="drive_folder_done_title">Descarga de carpeta finalizada</string>
+    <string name="drive_folder_done_summary">Descargados: %1$d. Ya guardados: %2$d. Fallidos: %3$d. Restringidos: %4$d.</string>
+    <string name="drive_folder_close">Cerrar</string>
     <string name="drive_remove_offline">Quitar copia descargada</string>
 </resources>
