@@ -25,6 +25,8 @@ internal class DrivePlaybackDataSource(
 ) : DataSource {
     private var active: DataSource? = null
     private val listeners = mutableListOf<TransferListener>()
+    /** Authorization must not be sent across an HTTP redirect to another origin. */
+    private val safeClient = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
     override fun open(dataSpec: DataSpec): Long {
         val id = MediaItems.trackIdOf(dataSpec.uri) ?: throw IOException("Missing Drive identity")
@@ -43,7 +45,7 @@ internal class DrivePlaybackDataSource(
             return file.open(dataSpec.withUri(Uri.fromFile(offline)))
         }
 
-        fun http(token: String): HttpDataSource = OkHttpDataSource.Factory(client)
+        fun http(token: String): HttpDataSource = OkHttpDataSource.Factory(safeClient)
             .setDefaultRequestProperties(mapOf("Authorization" to "Bearer $token"))
             .createDataSource().also { ds -> listeners.forEach(ds::addTransferListener) }
 
