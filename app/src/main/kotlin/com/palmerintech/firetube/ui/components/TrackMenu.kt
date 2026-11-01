@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -24,6 +25,8 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Radio
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
 import com.palmerintech.firetube.R
+import com.palmerintech.firetube.extractor.DownloadVariant
 import com.palmerintech.firetube.extractor.Track
 import com.palmerintech.firetube.extractor.TrackIdentity
 import com.palmerintech.firetube.ui.artistLabel
@@ -82,6 +87,7 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
     val downloads by container.downloads.state.collectAsState()
     val download = downloads[track.id]
     var addToPlaylist by rememberSaveable { mutableStateOf(false) }
+    var choosingDownload by remember(track.id) { mutableStateOf(false) }
 
     val dismiss = { controller.target = null }
 
@@ -95,6 +101,16 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
                 if (name != null) onShowMessage(resources.getString(R.string.menu_added_to_playlist, name))
             },
         )
+        return
+    }
+
+    if (choosingDownload) {
+        DownloadQualityDialog(container, track, onCancel = { choosingDownload = false }) { variant ->
+            choosingDownload = false
+            container.downloads.download(track, variant.id)
+            dismiss()
+            onShowMessage(resources.getString(R.string.menu_downloading))
+        }
         return
     }
 
@@ -127,8 +143,8 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
                 track.sourceId == TrackIdentity.LOCAL -> Unit
                 // A live stream has no end to download up to.
                 track.isLive && download == null -> Unit
-                download == null || download.failed -> MenuItem(Icons.Default.Download, stringResource(R.string.menu_download)) {
-                    container.downloads.download(track); dismiss(); onShowMessage(resources.getString(R.string.menu_downloading))
+                download == null -> MenuItem(Icons.Default.Download, stringResource(R.string.menu_download)) {
+                    choosingDownload = true
                 }
                 else -> MenuItem(Icons.Default.DownloadDone, stringResource(if (download.completed) R.string.menu_remove_download else R.string.menu_cancel_download)) {
                     container.downloads.remove(track.id); dismiss()
@@ -146,6 +162,74 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
             }
         }
     }
+}
+
+/** Query before download; show only streams the provider actually exposes. */
+@UnstableApi
+@Composable
+private fun DownloadQualityDialog(container: AppContainer, track: Track, onCancel: () -> Unit, onChoose: (DownloadVariant) -> Unit) {
+    var options by remember(track.id) { mutableStateOf<List<DownloadVariant>?>(null) }
+    var error by remember(track.id) { mutableStateOf<String?>(null) }
+    var selected by remember(track.id) { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(track.id) {
+        try {
+            container.resolver.remember(track)
+            val found = container.resolver.downloadVariants(track.id)
+            options = found
+            selected = found.maxByOrNull { it.bitrateKbps }?.id
+        } catch (e: Exception) {
+            error = e.localizedMessage ?: e.javaClass.simpleName
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(stringResource(R.string.download_choose_quality)) },
+        text = {
+            when {
+                error != null -> Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
+                options == null -> Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator()
+                    Spacer(Modifier.width(12.dp))
+                    Text(stringResource(R.string.download_loading_qualities))
+                }
+                options!!.isEmpty() -> Text(stringResource(R.string.download_no_qualities))
+                else -> LazyColumn(Modifier.heightIn(max = 350.dp)) {
+                    items(options!!, key = { it.id }) { option ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { selected = option.id }
+                                .padding(vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = selected == option.id, onClick = { selected = option.id })
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    "${if (option.bitrateKbps > 0) "${option.bitrateKbps} kbps" else "Unknown bitrate"} · ${option.mimeType?.substringAfter('/') ?: "Audio"}",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                )
+                                Text(
+                                    option.sizeBytes?.let {
+                                        val mb = "%.1f".format(java.util.Locale.getDefault(), it / 1_000_000.0)
+                                        if (option.sizeEstimated) "~$mb MB (estimate)" else "$mb MB"
+                                    } ?: "Size unknown",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = selected != null && options != null, onClick = {
+                options?.firstOrNull { it.id == selected }?.let(onChoose)
+            }) { Text(stringResource(R.string.menu_download)) }
+        },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) } },
+    )
 }
 
 @Composable
