@@ -44,7 +44,7 @@ class Downloads(
         context,
         stack.database,
         stack.downloadCache,
-        stack.networkFactory,
+        stack.downloadUpstreamFactory,
         Executors.newFixedThreadPool(2),
     ).apply { maxParallelDownloads = 2 }
 
