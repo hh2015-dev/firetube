@@ -74,13 +74,13 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
     var toRemove by remember { mutableStateOf<DriveEntry?>(null) }
     var refresh by remember { mutableStateOf(0) }
 
-    suspend fun reload(folderId: String, online: Boolean) {
+    suspend fun reload(folderId: String, online: Boolean, driveId: String?) {
         loading = true
         error = null
         items = library.cached(folderId)
         if (online) {
             try {
-                items = library.list(folderId)
+                items = library.list(folderId, driveId)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
@@ -90,7 +90,12 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         loading = false
     }
 
-    LaunchedEffect(folder.effectiveId, connected, refresh) { reload(folder.effectiveId, connected) }
+    // A shared drive has its own search corpus; remember the selected drive through subfolders.
+    val sharedDriveId = if (folders.size >= 3 &&
+        folders[1].effectiveId == DriveLibrary.SHARED_DRIVES) folders[2].effectiveId else null
+    LaunchedEffect(folder.effectiveId, connected, refresh, sharedDriveId) {
+        reload(folder.effectiveId, connected, sharedDriveId)
+    }
 
     val grant = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
