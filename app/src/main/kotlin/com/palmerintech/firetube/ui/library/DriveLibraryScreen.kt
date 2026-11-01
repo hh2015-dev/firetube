@@ -150,6 +150,12 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         }
     }
 
+    // Resolve localized messages within composition; callbacks must not read resources from
+    // LocalContext, which would miss configuration changes.
+    val scanFailedMessage = stringResource(R.string.drive_folder_scan_failed)
+    val cancelledMessage = stringResource(R.string.drive_folder_cancelled)
+    val downloadFailedMessage = stringResource(R.string.drive_folder_download_failed)
+
     // Scanning only requests Drive metadata. Downloading starts after a second, explicit confirmation.
     fun prepareFolder(entry: DriveEntry) {
         if (!connected || scanningFolder != null || runningFolderJob != null) return
@@ -164,7 +170,7 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                error = context.getString(R.string.drive_folder_scan_failed)
+                error = scanFailedMessage
             } finally {
                 scanningFolder = null
             }
@@ -312,10 +318,10 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                                 folderResult = result
                             } catch (e: CancellationException) {
                                 // A stopped batch keeps complete downloads from earlier in the batch.
-                                error = context.getString(R.string.drive_folder_cancelled)
+                                error = cancelledMessage
                                 throw e
                             } catch (_: Exception) {
-                                error = context.getString(R.string.drive_folder_download_failed)
+                                error = downloadFailedMessage
                             } finally {
                                 runningFolderJob = null
                                 folderProgress = null
