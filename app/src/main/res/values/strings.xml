@@ -158,6 +158,9 @@
     <string name="menu_add_to_queue">Add to queue</string>
     <string name="menu_added_to_queue">Added to queue</string>
     <string name="menu_start_radio">Start radio</string>
+    <string name="download_choose_quality">Choose offline audio quality</string>
+    <string name="download_loading_qualities">Checking available formats…</string>
+    <string name="download_no_qualities">No downloadable audio formats are available for this track.</string>
     <string name="menu_download">Download</string>
     <string name="menu_downloading">Downloading</string>
     <string name="menu_remove_download">Remove download</string>

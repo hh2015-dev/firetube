@@ -1,5 +1,6 @@
 package com.palmerintech.firetube.extractor
 
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -45,6 +46,8 @@ class NewPipeStreamSource(
     }
 
     private val yt = ServiceList.YouTube
+    /** Reuse the already extracted URL immediately after the user chooses a quality. */
+    private val preparedDownloads = ConcurrentHashMap<String, Map<String, ResolvedStream>>()
 
     override suspend fun search(query: String, filter: SearchFilter): Page<SearchResult> = io {
         val handler = yt.searchQHFactory.fromQuery(query, filter.contentFilters(), "")
@@ -93,6 +96,48 @@ class NewPipeStreamSource(
             related = related,
             track = track,
             // Same request: YouTube's chapters, or a track list in the description when it has none.
+            chapters = Chapters.fromSegments(info.streamSegments.orEmpty(), info.duration)
+                .ifEmpty { Chapters.fromDescription(Chapters.plainText(info.description), info.duration) },
+        )
+    }
+
+    override suspend fun downloadVariants(trackId: String): List<DownloadVariant> = io {
+        val info = StreamInfo.getInfo(yt, "https://www.youtube.com/watch?v=$trackId")
+        if (info.streamType.isLive()) return@io emptyList()
+        val selected = eligibleAudio(info.audioStreams).distinctBy(::variantId)
+        val chapters = Chapters.fromSegments(info.streamSegments.orEmpty(), info.duration)
+            .ifEmpty { Chapters.fromDescription(Chapters.plainText(info.description), info.duration) }
+        if (preparedDownloads.size > 24) preparedDownloads.clear()
+        preparedDownloads[trackId] = selected.associate { audio ->
+            variantId(audio) to ResolvedStream(
+                trackId, audio.content, audio.format?.mimeType, audio.averageBitrate,
+                expiryOf(audio.content), chapters = chapters,
+            )
+        }
+        selected.map { audio ->
+                val exact = audio.itagItem?.contentLength?.takeIf { it > 0 }
+                val bitrate = audio.averageBitrate
+                val estimate = if (exact == null && bitrate > 0 && info.duration > 0) {
+                    (info.duration * bitrate.toLong() * 1000L) / 8L
+                } else null
+                DownloadVariant(variantId(audio), bitrate, audio.format?.mimeType, exact ?: estimate, exact == null)
+            }
+            .sortedWith(compareBy<DownloadVariant> { it.bitrateKbps }.thenBy { it.mimeType })
+    }
+
+    override suspend fun resolveDownloadVariant(trackId: String, variantId: String, forceRefresh: Boolean): ResolvedStream = io {
+        if (!forceRefresh) preparedDownloads[trackId]?.get(variantId)
+            ?.takeIf { it.expiresAtMillis > System.currentTimeMillis() }?.let { return@io it }
+        val info = StreamInfo.getInfo(yt, "https://www.youtube.com/watch?v=$trackId")
+        if (info.streamType.isLive()) throw ExtractionException("Cannot download live audio")
+        val audio = eligibleAudio(info.audioStreams).firstOrNull { variantId(it) == variantId }
+            ?: throw ExtractionException("Selected audio quality is no longer available")
+        ResolvedStream(
+            trackId = trackId,
+            url = audio.content,
+            mimeType = audio.format?.mimeType,
+            bitrate = audio.averageBitrate,
+            expiresAtMillis = expiryOf(audio.content),
             chapters = Chapters.fromSegments(info.streamSegments.orEmpty(), info.duration)
                 .ifEmpty { Chapters.fromDescription(Chapters.plainText(info.description), info.duration) },
         )
@@ -214,12 +259,19 @@ class NewPipeStreamSource(
          * cleanly. Among those prefer AAC/M4A (plays everywhere, incl. Cast), then by bitrate.
          */
         internal fun pickAudio(streams: List<AudioStream>, preferLowBitrate: Boolean = false): AudioStream? {
-            val progressive = streams.filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
-            // Skip dubbed / descriptive audio tracks when an original exists.
-            val original = progressive.filter { it.audioTrackType == null || it.audioTrackType?.name == "ORIGINAL" }
             val byPreference = compareBy<AudioStream> { if (it.format == MediaFormat.M4A) 1 else 0 }
                 .thenBy { if (preferLowBitrate) -it.averageBitrate else it.averageBitrate }
-            return original.ifEmpty { progressive }.maxWithOrNull(byPreference)
+            return eligibleAudio(streams).maxWithOrNull(byPreference)
+        }
+
+        /** Stable across URL expiry; 0/-1 itags use format + bitrate as a fallback. */
+        internal fun variantId(stream: AudioStream): String =
+            if (stream.itag > 0) "itag:${stream.itag}" else "format:${stream.format?.mimeType}:${stream.averageBitrate}"
+
+        private fun eligibleAudio(streams: List<AudioStream>): List<AudioStream> {
+            val progressive = streams.filter { it.isUrl && it.deliveryMethod == DeliveryMethod.PROGRESSIVE_HTTP }
+            val original = progressive.filter { it.audioTrackType == null || it.audioTrackType?.name == "ORIGINAL" }
+            return original.ifEmpty { progressive }
         }
 
         internal fun expiryOf(url: String): Long {
