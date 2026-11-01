@@ -40,6 +40,22 @@ class MediaStack(
     /** Network: firetube:// ids → fresh googlevideo URLs over OkHttp. */
     val networkFactory: DataSource.Factory = YouTubeDataSource.Factory(OkHttpDataSource.Factory(httpClient), resolver)
 
+    /**
+     * Default downloads reuse already streamed bytes instead of fetching them a second time.
+     * Explicitly chosen encodings never consult the stream cache: a same-track cache entry may
+     * hold a different bitrate, which would otherwise corrupt the downloaded audio.
+     */
+    val downloadUpstreamFactory: DataSource.Factory = CacheDataSource.Factory()
+        .setCache(streamCache)
+        .setCacheWriteDataSinkFactory(null)
+        .setUpstreamDataSourceFactory(networkFactory)
+        .setCacheKeyFactory { spec ->
+            if (spec.uri.getQueryParameter("offlineQuality") != null) {
+                "offline-uncached:${spec.key ?: spec.uri}"
+            } else "${spec.key ?: spec.uri}@${qualityTag()}"
+        }
+        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
     /** Playback: downloads (read-only, plain keys) → stream cache (keyed by id + quality) → network. */
     private val cachedFactory: DataSource.Factory = CacheDataSource.Factory()
         .setCache(downloadCache)
