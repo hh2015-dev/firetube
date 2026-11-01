@@ -377,7 +377,30 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
                     onMore = { menu.open(t) },
                     downloaded = d?.completed == true,
                     trailing = if (list == TrackList.DOWNLOADS && d != null && !d.completed) {
-                        { Text(if (d.failed) stringResource(R.string.download_failed) else stringResource(R.string.download_percent, d.percent.toInt().coerceAtLeast(0)), style = MaterialTheme.typography.labelMedium) }
+                        {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    if (d.failed) stringResource(R.string.download_failed)
+                                    else if (d.percent >= 0f) stringResource(R.string.download_percent, d.percent.toInt().coerceIn(0, 100))
+                                    else "…",
+                                    style = MaterialTheme.typography.labelMedium,
+                                )
+                                val transferred = "%.1f".format(java.util.Locale.getDefault(), d.bytesDownloaded / 1_000_000.0)
+                                val total = if (d.sizeBytes > 0) {
+                                    "%.1f".format(java.util.Locale.getDefault(), d.sizeBytes / 1_000_000.0)
+                                } else null
+                                Text(
+                                    if (total == null) "$transferred MB" else "$transferred / $total MB",
+                                    style = MaterialTheme.typography.labelSmall,
+                                )
+                                if (d.bytesPerSecond > 0) {
+                                    Text(
+                                        "%.2f MB/s".format(java.util.Locale.getDefault(), d.bytesPerSecond / 1_000_000.0),
+                                        style = MaterialTheme.typography.labelSmall,
+                                    )
+                                }
+                            }
+                        }
                     } else null,
                 )
             }
