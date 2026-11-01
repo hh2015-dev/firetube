@@ -82,6 +82,18 @@ data class ResolvedStream(
     val live: Boolean = false,
 )
 
+/**
+ * One genuinely available progressive audio stream; never a promised transcoding setting.
+ * Size is exact only when [sizeEstimated] is false; otherwise derived from the stream bitrate.
+ */
+data class DownloadVariant(
+    val id: String,
+    val bitrateKbps: Int,
+    val mimeType: String?,
+    val sizeBytes: Long?,
+    val sizeEstimated: Boolean,
+)
+
 /** A titled section of a track, starting [startMs] into it. [title] may be empty (YouTube gave none). */
 data class Chapter(val title: String, val startMs: Long)
 
