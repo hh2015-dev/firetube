@@ -90,7 +90,7 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         loading = false
     }
 
-    LaunchedEffect(folder.id, connected, refresh) { reload(folder.id, connected) }
+    LaunchedEffect(folder.effectiveId, connected, refresh) { reload(folder.effectiveId, connected) }
 
     val grant = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
@@ -164,7 +164,7 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                     Icon(if (entry.isFolder) Icons.Default.Folder else Icons.Default.MusicNote, null)
                     Column(Modifier.weight(1f)) {
                         Text(entry.name, style = MaterialTheme.typography.bodyLarge)
-                        if (!entry.isFolder && library.isOffline(entry.id)) {
+                        if (!entry.isFolder && library.isOffline(entry.effectiveId)) {
                             Text(stringResource(R.string.drive_available_offline),
                                 color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodySmall)
@@ -185,31 +185,31 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                                     container.player.play(listOf(track))
                                 } catch (_: Exception) { error = "Audio playback could not start." }
                             }
-                        }, enabled = connected || library.isOffline(entry.id)) {
+                        }, enabled = connected || library.isOffline(entry.effectiveId)) {
                             Icon(Icons.Default.PlayArrow, stringResource(R.string.drive_play))
                         }
-                        if (library.isOffline(entry.id)) {
+                        if (library.isOffline(entry.effectiveId)) {
                             IconButton(onClick = { toRemove = entry }) {
                                 Icon(Icons.Default.CloudDone, stringResource(R.string.drive_remove_offline))
                             }
-                        } else if (working[entry.id] == true) {
+                        } else if (working[entry.effectiveId] == true) {
                             CircularProgressIndicator(Modifier.padding(8.dp))
                         } else {
                             IconButton(onClick = {
                                 scope.launch {
-                                    working[entry.id] = true
+                                    working[entry.effectiveId] = true
                                     try {
                                         val track = container.driveAudio.track(entry)
                                         container.library.saveTracks(listOf(track))
                                         container.resolver.remember(track)
                                         library.downloadSelected(entry)
-                                        changed[entry.id] = true
+                                        changed[entry.effectiveId] = true
                                     } catch (e: CancellationException) {
                                         throw e
                                     } catch (_: Exception) {
                                         error = "Could not download the selected audio file."
                                     } finally {
-                                        working.remove(entry.id)
+                                        working.remove(entry.effectiveId)
                                     }
                                 }
                             }, enabled = connected && entry.canDownload) {
@@ -230,8 +230,8 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                 TextButton(onClick = {
                     toRemove = null
                     scope.launch {
-                        library.removeOffline(entry.id)
-                        changed[entry.id] = false
+                        library.removeOffline(entry.effectiveId)
+                        changed[entry.effectiveId] = false
                     }
                 }) { Text(stringResource(R.string.action_delete)) }
             },
