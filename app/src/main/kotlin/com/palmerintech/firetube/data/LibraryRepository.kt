@@ -63,6 +63,29 @@ class LibraryRepository(private val dao: LibraryDao) {
         return id
     }
 
+    /**
+     * A Drive folder is represented by a normal playlist under Library > Playlists.
+     * Repeated taps reuse the existing playlist instead of making duplicates or overwriting
+     * user edits to its songs/order. This only stores metadata and starts no downloads.
+     */
+    suspend fun saveDriveFolderAsPlaylist(
+        name: String,
+        accountNamespace: String,
+        folderId: String,
+        tracks: List<Track>,
+    ): Pair<String, Boolean> = edits.withLock {
+        require(name.isNotBlank())
+        val id = DriveFolderPlaylistIdentity.forFolder(accountNamespace, folderId)
+        val existing = dao.playlist(id)
+        if (existing != null && !existing.deleted) return@withLock id to false
+        dao.writePlaylist(
+            PlaylistEntity(id, name.trim(), now()),
+            tracks.distinctBy { it.id }.map(TrackEntity::of),
+        )
+        _changes.tryEmit(id)
+        id to true
+    }
+
     suspend fun renamePlaylist(id: String, name: String): Unit = edits.withLock {
         val p = dao.playlist(id) ?: return
         dao.upsertPlaylist(p.copy(name = name.trim(), updatedAt = now()))
