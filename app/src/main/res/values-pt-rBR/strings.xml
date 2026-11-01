@@ -368,6 +368,13 @@
     <string name="drive_folder_download_failed">Download interrompido por um erro. Os arquivos completos continuam disponíveis offline.</string>
     <string name="drive_folder_done_title">Download da pasta concluído</string>
     <string name="drive_folder_done_summary">Baixados: %1$d. Já salvos: %2$d. Falhas: %3$d. Restritos: %4$d.</string>
+    <string name="drive_save_folder_playlist">Salvar pasta como playlist</string>
+    <string name="drive_playlist_confirm_title">Salvar como playlist?</string>
+    <string name="drive_playlist_confirm_summary">Adicionar %1$d músicas de %2$d pastas à Biblioteca → Playlists. %3$d arquivos restritos ficam de fora. Nenhum arquivo será baixado.</string>
+    <string name="drive_playlist_saved">Pasta salva em Biblioteca → Playlists. Abra a lista para reproduzir as músicas.</string>
+    <string name="drive_playlist_already_saved">Esta pasta já está em Biblioteca → Playlists. As edições existentes foram mantidas.</string>
+    <string name="drive_playlist_failed">Não foi possível salvar a pasta. Reconecte o Google Drive ou verifique as pastas em cache.</string>
+    <string name="drive_playlist_save">Salvar playlist</string>
     <string name="drive_folder_close">Fechar</string>
     <string name="drive_remove_offline">Remover cópia offline</string>
 </resources>
