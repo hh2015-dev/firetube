@@ -149,6 +149,9 @@
     <string name="menu_add_to_queue">Agregar a la fila</string>
     <string name="menu_added_to_queue">Se agregó a la fila</string>
     <string name="menu_start_radio">Iniciar radio</string>
+    <string name="download_choose_quality">Elige la calidad del audio sin conexión</string>
+    <string name="download_loading_qualities">Comprobando los formatos disponibles…</string>
+    <string name="download_no_qualities">No hay formatos de audio disponibles para descargar de esta pista.</string>
     <string name="menu_download">Descargar</string>
     <string name="menu_downloading">Descargando</string>
     <string name="menu_remove_download">Quitar descarga</string>
