@@ -74,6 +74,21 @@ class DriveLibrary(
     }
 
     /**
+     * Build an editable playlist from the full folder tree without downloading any bytes.
+     * Offline mode reads only folder snapshots previously visited or scanned. Missing snapshots
+     * fail explicitly; silently creating a partial playlist would misrepresent the folder.
+     */
+    suspend fun planFolderPlaylist(folderId: String, driveId: String? = null): DriveFolderPlan {
+        if (access.connected) return planFolderDownload(folderId, driveId)
+        val namespace = access.namespace ?: throw IOException("Connect Google Drive to save a folder")
+        return DriveFolderPlanner.scan(folderId, namespace) { id ->
+            val saved = cachedFile(id)
+            if (!saved.isFile) throw IOException("Folder is not available offline: $id")
+            DriveAudioTypes.visible(json.decodeFromString<DriveSnapshot>(saved.readText()).entries)
+        }
+    }
+
+    /**
      * An explicit second click starts sequential, cancellable downloads. Previously saved
      * files are reused; cancellation leaves all completed files playable offline.
      * Individual failures are counted, never silently described as a complete folder.
