@@ -61,12 +61,18 @@ internal class DocumentPlaybackDataSource(context: Context, private val resolver
 
 /** Source-specific routing: document and local media never enter the YouTube cache. */
 @androidx.media3.common.util.UnstableApi
-internal class PlaybackDataSource(private val cached: DataSource, private val local: DataSource, private val document: DataSource = local) : DataSource {
+internal class PlaybackDataSource(
+    private val cached: DataSource,
+    private val local: DataSource,
+    private val document: DataSource = local,
+    private val drive: DataSource? = null,
+) : DataSource {
     private var active: DataSource = cached
     override fun open(dataSpec: DataSpec): Long {
         active = when {
             MediaItems.isLocalUri(dataSpec.uri) -> local
             MediaItems.isDocumentUri(dataSpec.uri) -> document
+            MediaItems.isDriveUri(dataSpec.uri) -> drive ?: throw IOException("Google Drive playback is unavailable")
             else -> cached
         }
         return active.open(dataSpec)
@@ -79,5 +85,6 @@ internal class PlaybackDataSource(private val cached: DataSource, private val lo
         cached.addTransferListener(listener)
         local.addTransferListener(listener)
         if (document !== local) document.addTransferListener(listener)
+        drive?.addTransferListener(listener)
     }
 }
