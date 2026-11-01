@@ -3,6 +3,7 @@ package com.palmerintech.firetube.drive
 import android.content.Context
 import android.content.Intent
 import com.google.android.gms.auth.api.identity.AuthorizationRequest
+import com.google.android.gms.auth.api.identity.ClearTokenRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
@@ -87,8 +88,21 @@ class DriveAccess(private val context: Context, private val httpClient: OkHttpCl
      * Do not refresh continuously on 403 (which can mean a file cannot be downloaded).
      */
     suspend fun refreshToken(): String {
+        // Invalidating the local reference alone would return the same cached expired token.
+        // Google Play Services must be asked to clear it before obtaining a replacement.
+        val previous = token
+        val expectedAccount = namespace
+        if (previous != null) {
+            client.clearToken(ClearTokenRequest.builder().setToken(previous).build()).await()
+        }
         token = null
-        return bearerToken()
+        val replacement = bearerToken()
+        val actualAccount = confirmAccount()
+        if (expectedAccount != null && actualAccount != expectedAccount) {
+            disconnectLocally()
+            throw SecurityException("Google Drive account changed during token renewal")
+        }
+        return replacement
     }
 
     fun disconnectLocally() {
