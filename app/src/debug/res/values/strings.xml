@@ -1,4 +1,4 @@
 <resources>
     <!-- Keep the main app_name resource unchanged for widgets and translations. -->
-    <string name="offline_preview_app_label" translatable="false">FireTube Drive Test</string>
+    <string name="offline_preview_app_label" translatable="false">FireTube Folder Test</string>
 </resources>
