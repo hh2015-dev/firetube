@@ -94,12 +94,15 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
 
     val grant = rememberLauncherForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            try {
-                access.acceptIntent(requireNotNull(result.data))
-                connected = true
-                refresh++
-            } catch (_: Exception) {
-                error = "Google Drive permission was not granted."
+            scope.launch {
+                try {
+                    access.acceptIntent(requireNotNull(result.data))
+                    access.confirmAccount()
+                    connected = true
+                    refresh++
+                } catch (_: Exception) {
+                    error = "Google Drive permission or account verification failed."
+                }
             }
         } else {
             error = "Google Drive authorization was cancelled."
@@ -117,6 +120,7 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                     grant.launch(IntentSenderRequest.Builder(pending.intentSender).build())
                 } else {
                     access.accept(response)
+                    access.confirmAccount()
                     connected = true
                     refresh++
                 }
