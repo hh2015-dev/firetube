@@ -354,5 +354,20 @@
     <string name="drive_available_offline">Salvo para ouvir offline</string>
     <string name="drive_play">Reproduzir áudio selecionado</string>
     <string name="drive_download">Baixar para ouvir offline</string>
+    <string name="drive_download_folder">Baixar pasta inteira para ouvir offline</string>
+    <string name="drive_scanning_folder">Preparando a pasta selecionada…</string>
+    <string name="drive_folder_confirm_title">Baixar toda a pasta?</string>
+    <string name="drive_folder_confirm_summary">%1$d áudios em %2$d pastas. %3$d arquivos restritos serão ignorados. Tamanho conhecido: %4$s (%5$d arquivos sem tamanho conhecido). Arquivos já salvos serão reutilizados.</string>
+    <string name="drive_folder_no_audio">Nenhum áudio disponível para download foi encontrado.</string>
+    <string name="drive_folder_scan_failed">Não foi possível examinar todas as subpastas. Nada foi baixado.</string>
+    <string name="drive_folder_start">Baixar pasta</string>
+    <string name="drive_folder_progress_title">Baixando pasta</string>
+    <string name="drive_folder_progress">%1$d de %2$d arquivos processados. %3$d baixados, %4$d já salvos, %5$d com falha. Último arquivo: %6$s</string>
+    <string name="drive_folder_cancel">Parar download</string>
+    <string name="drive_folder_cancelled">Download interrompido. Os arquivos completos continuam disponíveis offline.</string>
+    <string name="drive_folder_download_failed">Download interrompido por um erro. Os arquivos completos continuam disponíveis offline.</string>
+    <string name="drive_folder_done_title">Download da pasta concluído</string>
+    <string name="drive_folder_done_summary">Baixados: %1$d. Já salvos: %2$d. Falhas: %3$d. Restritos: %4$d.</string>
+    <string name="drive_folder_close">Fechar</string>
     <string name="drive_remove_offline">Remover cópia offline</string>
 </resources>
