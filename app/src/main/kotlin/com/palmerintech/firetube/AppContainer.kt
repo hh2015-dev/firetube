@@ -16,6 +16,9 @@ import com.palmerintech.firetube.data.sync.CloudSync
 import com.palmerintech.firetube.extractor.NewPipeStreamSource
 import com.palmerintech.firetube.extractor.StreamSource
 import com.palmerintech.firetube.extractor.AudioSourceRegistry
+import com.palmerintech.firetube.drive.DriveAccess
+import com.palmerintech.firetube.drive.DriveLibrary
+import com.palmerintech.firetube.drive.DriveAudioSource
 import com.palmerintech.firetube.local.LocalAudio
 import com.palmerintech.firetube.lyrics.Lyrics
 import com.palmerintech.firetube.player.ChapterStore
@@ -60,13 +63,16 @@ class AppContainer(val app: Application) {
     // Same synchronous source as the song-cache key, so URL bitrate and cache key always agree.
     val localAudio by lazy { LocalAudio(app) }
     val documentAudio by lazy { com.palmerintech.firetube.local.DocumentAudio(app) }
-    val sources by lazy { AudioSourceRegistry(listOf(source, localAudio, documentAudio)) }
+    val driveAccess by lazy { DriveAccess(app) }
+    val driveLibrary by lazy { DriveLibrary(app, httpClient, driveAccess) }
+    val driveAudio by lazy { DriveAudioSource() }
+    val sources by lazy { AudioSourceRegistry(listOf(source, localAudio, documentAudio, driveAudio)) }
     val resolver by lazy {
         StreamResolver(sources, { library.knownTrack(it)?.identity }, chapterStore) { settings.audioQualityNow() }
     }
     private val chapterStore by lazy { ChapterStore(File(app.filesDir, "chapters")) }
     val mediaStack by lazy {
-        MediaStack(app, httpClient, resolver, settings.cacheSizeMbNow()) { settings.audioQualityNow().name }
+        MediaStack(app, httpClient, resolver, settings.cacheSizeMbNow(), driveLibrary) { settings.audioQualityNow().name }
     }
     val castServer by lazy { CastProxyServer(app, resolver, httpClient) }
 
