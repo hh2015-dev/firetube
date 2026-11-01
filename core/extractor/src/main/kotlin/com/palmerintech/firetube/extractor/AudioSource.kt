@@ -7,7 +7,7 @@ interface AudioSource {
     suspend fun resolve(trackId: String, preferLowBitrate: Boolean = false): ResolvedStream
     /** No fabricated quality choices: providers opt in only when real streams are available. */
     suspend fun downloadVariants(trackId: String): List<DownloadVariant> = emptyList()
-    suspend fun resolveDownloadVariant(trackId: String, variantId: String): ResolvedStream =
+    suspend fun resolveDownloadVariant(trackId: String, variantId: String, forceRefresh: Boolean = false): ResolvedStream =
         throw ExtractionException("Offline quality not supported by $sourceId")
 
 }
@@ -23,10 +23,10 @@ class AudioSourceRegistry(sources: List<AudioSource>) {
     suspend fun downloadVariants(identity: TrackIdentity): List<DownloadVariant> =
         byId[identity.sourceId]?.downloadVariants(identity.externalId).orEmpty()
 
-    suspend fun resolveDownloadVariant(identity: TrackIdentity, variantId: String): ResolvedStream {
+    suspend fun resolveDownloadVariant(identity: TrackIdentity, variantId: String, forceRefresh: Boolean = false): ResolvedStream {
         val source = byId[identity.sourceId]
             ?: throw ExtractionException("Unsupported source: ${identity.sourceId}")
-        return remap(identity, source.resolveDownloadVariant(identity.externalId, variantId))
+        return remap(identity, source.resolveDownloadVariant(identity.externalId, variantId, forceRefresh))
     }
 
     suspend fun resolve(identity: TrackIdentity, preferLowBitrate: Boolean = false): ResolvedStream {
