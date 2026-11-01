@@ -6,7 +6,13 @@ import com.google.android.gms.auth.api.identity.AuthorizationRequest
 import com.google.android.gms.auth.api.identity.AuthorizationResult
 import com.google.android.gms.auth.api.identity.Identity
 import com.google.android.gms.common.api.Scope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+import java.io.IOException
 import java.security.MessageDigest
 
 /**
@@ -16,7 +22,7 @@ import java.security.MessageDigest
  * Connecting to another Google account changes the namespace of offline files and catalogues.
  * No network request should ever run before the user grants the scope explicitly.
  */
-class DriveAccess(private val context: Context) {
+class DriveAccess(private val context: Context, private val httpClient: OkHttpClient) {
     companion object {
         const val SCOPE = "https://www.googleapis.com/auth/drive.readonly"
     }
@@ -41,16 +47,31 @@ class DriveAccess(private val context: Context) {
         }
         val access = result.accessToken?.takeIf { it.isNotBlank() }
             ?: throw IllegalStateException("Google did not return a Drive access token")
-        val identity = result.toGoogleSignInAccount()?.let { it.id ?: it.email }
-            ?: throw IllegalStateException("Google account identity is unavailable")
-        val hash = MessageDigest.getInstance("SHA-256").digest(identity.toByteArray(Charsets.UTF_8))
-            .joinToString("") { "%02x".format(it) }
-        accountId = hash
+        // Drive authorization does not necessarily grant profile/email scopes, so both fields
+        // can legitimately be null. Confirm the Drive permissionId via about.get instead.
         token = access
-        preferences.edit().putString("account-hash", hash).apply()
+        accountId = null
     }
 
     fun acceptIntent(intent: Intent) = accept(client.getAuthorizationResultFromIntent(intent))
+
+    /** Drive's stable permissionId identifies the granted account without extra identity scopes. */
+    suspend fun confirmAccount(): String = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("https://www.googleapis.com/drive/v3/about?fields=user(permissionId)")
+            .header("Authorization", "Bearer ${bearerToken()}")
+            .build()
+        val permissionId = httpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("Drive account verification failed (HTTP ${response.code})")
+            JSONObject(response.body.string()).getJSONObject("user").getString("permissionId")
+        }
+        if (permissionId.isBlank()) throw IOException("Google Drive account identifier is unavailable")
+        val hash = MessageDigest.getInstance("SHA-256")
+            .digest(permissionId.toByteArray(Charsets.UTF_8)).joinToString("") { "%02x".format(it) }
+        accountId = hash
+        preferences.edit().putString("account-hash", hash).apply()
+        hash
+    }
 
     suspend fun bearerToken(): String {
         token?.let { return it }
