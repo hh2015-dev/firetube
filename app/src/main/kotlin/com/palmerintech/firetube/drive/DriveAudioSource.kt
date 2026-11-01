@@ -22,8 +22,8 @@ class DriveAudioSource : AudioSource {
 
     fun track(entry: DriveEntry): Track {
         require(entry.isAudio)
-        val identity = TrackIdentity.forSource(sourceId, entry.id)
+        val identity = TrackIdentity.forSource(sourceId, entry.effectiveId)
         return Track(identity.id, entry.name, "", 0L, null, sourceId = sourceId,
-            externalId = entry.id, fileName = entry.name)
+            externalId = entry.effectiveId, fileName = entry.name)
     }
 }
