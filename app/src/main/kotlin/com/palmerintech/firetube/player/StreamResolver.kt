@@ -79,7 +79,7 @@ class StreamResolver(
         if (!forceRefresh) fresh(key)?.let { return it }
         return locks.getOrPut(key) { Mutex() }.withLock {
             if (!forceRefresh) fresh(key)?.let { return@withLock it }
-            sources.resolveDownloadVariant(identityOf(trackId), variantId)
+            sources.resolveDownloadVariant(identityOf(trackId), variantId, forceRefresh)
                 .also { cache[key] = it; keepChapters(trackId, it.chapters) }
         }
     }
