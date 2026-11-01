@@ -2,6 +2,7 @@ package com.palmerintech.firetube.player
 
 import android.app.Notification
 import android.content.Context
+import android.os.SystemClock
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
@@ -72,12 +73,25 @@ class Downloads(
             val active = _state.value.values.any { it.state == Download.STATE_DOWNLOADING || it.state == Download.STATE_QUEUED }
             if (active && progressJob?.isActive != true) {
                 progressJob = scope.launch {
+                    var lastSampleMs = SystemClock.elapsedRealtime()
                     while (isActive) {
                         delay(1000)
+                        val previous = _state.value
                         readIndex()
-                        // The index only records progress every few seconds; take live figures from the manager.
-                        val live = withContext(Dispatchers.Main) { manager.currentDownloads.associate { it.request.id to it.percentDownloaded } }
-                        _state.value = _state.value.mapValues { (id, info) -> live[id]?.let { info.copy(percent = it) } ?: info }
+                        // Media3's live counters are newer than the persisted index.
+                        val live = withContext(Dispatchers.Main) { manager.currentDownloads.associateBy { it.request.id } }
+                        val now = SystemClock.elapsedRealtime()
+                        val elapsed = (now - lastSampleMs).coerceAtLeast(1)
+                        _state.value = _state.value.mapValues { (id, info) ->
+                            val current = live[id] ?: return@mapValues info
+                            val previousBytes = previous[id]?.bytesDownloaded ?: current.bytesDownloaded
+                            val bytesPerSecond = if (current.state == Download.STATE_DOWNLOADING) {
+                                ((current.bytesDownloaded - previousBytes).coerceAtLeast(0) * 1000L) / elapsed
+                            } else 0L
+                            info.copy(percent = current.percentDownloaded, bytesDownloaded = current.bytesDownloaded,
+                                sizeBytes = current.contentLength, bytesPerSecond = bytesPerSecond)
+                        }
+                        lastSampleMs = now
                         if (_state.value.values.none { it.state == Download.STATE_DOWNLOADING || it.state == Download.STATE_QUEUED }) break
                     }
                 }
@@ -85,10 +99,18 @@ class Downloads(
         }
     }
 
-    fun download(track: Track) {
-        if (track.sourceId == TrackIdentity.LOCAL) return // Already on the device; never duplicate its bytes.
+    fun download(track: Track, variantId: String? = null) {
+        if (track.sourceId == TrackIdentity.LOCAL || track.isLive) return
+        // A different encoding must never reuse partial bytes from an old, failed download.
+        // The caller removes an existing entry before selecting another quality.
+        if (_state.value.containsKey(track.id)) return
         resolver.remember(track)
-        val request = DownloadRequest.Builder(track.id, MediaItems.uriOf(track.id))
+        val plainUri = MediaItems.uriOf(track.id)
+        val uri = if (variantId == null) plainUri else plainUri.buildUpon()
+            .appendQueryParameter("offlineQuality", variantId).build()
+        val request = DownloadRequest.Builder(track.id, uri)
+            // Playback looks up the plain URI. Keep that cache key for legacy downloads too.
+            .setCustomCacheKey(plainUri.toString())
             .setData(json.encodeToString(StoredTrack.serializer(), StoredTrack.of(track)).encodeToByteArray())
             .build()
         DownloadService.sendAddDownload(context, DownloadsService::class.java, request, false)
@@ -109,7 +131,7 @@ class Downloads(
                     json.decodeFromString(StoredTrack.serializer(), d.request.data.decodeToString()).toTrack()
                 }.getOrNull() ?: continue
                 resolver.remember(track)
-                out[d.request.id] = DownloadInfo(track, d.state, d.percentDownloaded)
+                out[d.request.id] = DownloadInfo(track, d.state, d.percentDownloaded, d.bytesDownloaded, d.contentLength)
             }
         }
         _state.value = out
@@ -117,7 +139,14 @@ class Downloads(
         chapterStore.keepFor(ids, resolver::knownChapters)
     }
 
-    data class DownloadInfo(val track: Track, val state: Int, val percent: Float) {
+    data class DownloadInfo(
+        val track: Track,
+        val state: Int,
+        val percent: Float,
+        val bytesDownloaded: Long = 0L,
+        val sizeBytes: Long = -1L,
+        val bytesPerSecond: Long = 0L,
+    ) {
         val completed get() = state == Download.STATE_COMPLETED
         val failed get() = state == Download.STATE_FAILED
     }
