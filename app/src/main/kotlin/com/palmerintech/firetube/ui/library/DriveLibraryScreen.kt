@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -84,6 +85,8 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
     var refresh by remember { mutableStateOf(0) }
     var scanningFolder by remember { mutableStateOf<String?>(null) }
     var plannedFolder by remember { mutableStateOf<Pair<DriveEntry, DriveFolderPlan>?>(null) }
+    var plannedPlaylist by remember { mutableStateOf<Pair<DriveEntry, DriveFolderPlan>?>(null) }
+    var playlistMessage by remember { mutableStateOf<String?>(null) }
     var runningFolderJob by remember { mutableStateOf<Job?>(null) }
     var folderProgress by remember { mutableStateOf<DriveFolderProgress?>(null) }
     var folderResult by remember { mutableStateOf<DriveFolderResult?>(null) }
@@ -155,6 +158,9 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
     val scanFailedMessage = stringResource(R.string.drive_folder_scan_failed)
     val cancelledMessage = stringResource(R.string.drive_folder_cancelled)
     val downloadFailedMessage = stringResource(R.string.drive_folder_download_failed)
+    val playlistSavedMessage = stringResource(R.string.drive_playlist_saved)
+    val playlistExistsMessage = stringResource(R.string.drive_playlist_already_saved)
+    val playlistFailedMessage = stringResource(R.string.drive_playlist_failed)
 
     // Scanning only requests Drive metadata. Downloading starts after a second, explicit confirmation.
     fun prepareFolder(entry: DriveEntry) {
@@ -177,6 +183,28 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         }
     }
 
+    // A saved playlist is metadata only. It never starts a download or playback.
+    fun preparePlaylist(entry: DriveEntry) {
+        if (scanningFolder != null || runningFolderJob != null) return
+        scanningFolder = entry.effectiveId
+        error = null
+        playlistMessage = null
+        scope.launch {
+            try {
+                val driveId = if (folder.effectiveId == DriveLibrary.SHARED_DRIVES)
+                    entry.effectiveId else sharedDriveId
+                val plan = library.planFolderPlaylist(entry.effectiveId, driveId)
+                plannedPlaylist = entry to plan
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                error = playlistFailedMessage
+            } finally {
+                scanningFolder = null
+            }
+        }
+    }
+
     Column {
         TopAppBar(
             title = { Text(if (folders.size == 1) stringResource(R.string.drive_library_title) else folder.name) },
@@ -187,6 +215,14 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                 }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) }
             },
             actions = {
+                if (folders.size > 1 && !folder.effectiveId.startsWith("virtual:")) {
+                    IconButton(
+                        onClick = { preparePlaylist(folder) },
+                        enabled = scanningFolder == null && runningFolderJob == null,
+                    ) {
+                        Icon(Icons.Default.PlaylistAdd, stringResource(R.string.drive_save_folder_playlist))
+                    }
+                }
                 IconButton(onClick = { refresh++ }, enabled = connected) {
                     Icon(Icons.Default.Refresh, stringResource(R.string.local_audio_refresh))
                 }
@@ -200,6 +236,10 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         }
         if (error != null) {
             Text(error.orEmpty(), modifier = Modifier.padding(16.dp), color = MaterialTheme.colorScheme.error)
+        }
+        if (playlistMessage != null) {
+            Text(playlistMessage.orEmpty(), modifier = Modifier.padding(16.dp),
+                color = MaterialTheme.colorScheme.primary)
         }
         if (loading) CircularProgressIndicator(Modifier.padding(16.dp))
         if (items.isEmpty() && !loading) {
@@ -224,6 +264,15 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                     if (entry.isFolder) {
                         TextButton(onClick = { folders.add(entry) }) {
                             Text(stringResource(R.string.action_open))
+                        }
+                        if (!entry.effectiveId.startsWith("virtual:")) {
+                            IconButton(
+                                onClick = { preparePlaylist(entry) },
+                                enabled = scanningFolder == null && runningFolderJob == null,
+                            ) {
+                                Icon(Icons.Default.PlaylistAdd,
+                                    stringResource(R.string.drive_save_folder_playlist))
+                            }
                         }
                         if (connected && !entry.effectiveId.startsWith("virtual:")) {
                             if (scanningFolder == entry.effectiveId) {
@@ -285,6 +334,49 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
             }
         }
     }
+    plannedPlaylist?.let { (entry, plan) ->
+        AlertDialog(
+            onDismissRequest = { plannedPlaylist = null },
+            title = { Text(stringResource(R.string.drive_playlist_confirm_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(entry.name)
+                    Text(stringResource(R.string.drive_playlist_confirm_summary,
+                        plan.audio.size, plan.foldersVisited, plan.blockedFiles))
+                    if (plan.audio.isEmpty()) {
+                        Text(stringResource(R.string.drive_folder_no_audio))
+                    }
+                }
+            },
+            confirmButton = {
+                if (plan.audio.isNotEmpty()) {
+                    TextButton(onClick = {
+                        plannedPlaylist = null
+                        scope.launch {
+                            try {
+                                // A normal editable playlist, accessible from Library > Playlists.
+                                // No Drive bytes are fetched and no player is started.
+                                val tracks = plan.audio.map(container.driveAudio::track)
+                                val (_, created) = container.library.saveDriveFolderAsPlaylist(
+                                    entry.name, plan.accountNamespace, entry.effectiveId, tracks)
+                                playlistMessage = if (created) playlistSavedMessage else playlistExistsMessage
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                error = playlistFailedMessage
+                            }
+                        }
+                    }) { Text(stringResource(R.string.drive_playlist_save)) }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { plannedPlaylist = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
     plannedFolder?.let { (entry, plan) ->
         AlertDialog(
             onDismissRequest = { plannedFolder = null },
