@@ -368,6 +368,13 @@
     <string name="drive_folder_download_failed">La descarga se detuvo por un error. Los archivos completos permanecen disponibles sin conexión.</string>
     <string name="drive_folder_done_title">Descarga de carpeta finalizada</string>
     <string name="drive_folder_done_summary">Descargados: %1$d. Ya guardados: %2$d. Fallidos: %3$d. Restringidos: %4$d.</string>
+    <string name="drive_save_folder_playlist">Guardar carpeta como lista</string>
+    <string name="drive_playlist_confirm_title">¿Guardar como lista de reproducción?</string>
+    <string name="drive_playlist_confirm_summary">Añadir %1$d canciones de %2$d carpetas a Biblioteca → Listas. Se excluyen %3$d archivos restringidos. Esto no descarga archivos.</string>
+    <string name="drive_playlist_saved">Carpeta guardada en Biblioteca → Listas. Ábrela allí para escuchar las canciones.</string>
+    <string name="drive_playlist_already_saved">Esta carpeta ya está en Biblioteca → Listas. Se conservaron los cambios existentes.</string>
+    <string name="drive_playlist_failed">No se pudo guardar la carpeta. Conecta Google Drive o revisa las carpetas disponibles sin conexión.</string>
+    <string name="drive_playlist_save">Guardar lista</string>
     <string name="drive_folder_close">Cerrar</string>
     <string name="drive_remove_offline">Quitar copia descargada</string>
 </resources>
