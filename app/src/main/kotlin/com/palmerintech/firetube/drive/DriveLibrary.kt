@@ -166,7 +166,9 @@ class DriveLibrary(
         // A previous interrupted attempt must not be trusted or shown as offline.
         partial.delete()
         try {
-            val url = "$BASE/${entry.effectiveId}?alt=media&supportsAllDrives=true"
+            val url = BASE.toHttpUrl().newBuilder().addPathSegment(entry.effectiveId)
+                .addQueryParameter("alt", "media")
+                .addQueryParameter("supportsAllDrives", "true").build().toString()
             fun request(token: String) = Request.Builder().url(url).header("Authorization", "Bearer $token").build()
             var response = safeClient.newCall(request(access.bearerToken())).execute()
             if (response.code == 401) {
