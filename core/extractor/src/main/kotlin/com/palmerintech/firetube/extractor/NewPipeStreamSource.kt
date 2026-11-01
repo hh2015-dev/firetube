@@ -1,5 +1,6 @@
 package com.palmerintech.firetube.extractor
 
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -45,6 +46,8 @@ class NewPipeStreamSource(
     }
 
     private val yt = ServiceList.YouTube
+    /** Reuse the already extracted URL immediately after the user chooses a quality. */
+    private val preparedDownloads = ConcurrentHashMap<String, Map<String, ResolvedStream>>()
 
     override suspend fun search(query: String, filter: SearchFilter): Page<SearchResult> = io {
         val handler = yt.searchQHFactory.fromQuery(query, filter.contentFilters(), "")
@@ -101,8 +104,17 @@ class NewPipeStreamSource(
     override suspend fun downloadVariants(trackId: String): List<DownloadVariant> = io {
         val info = StreamInfo.getInfo(yt, "https://www.youtube.com/watch?v=$trackId")
         if (info.streamType.isLive()) return@io emptyList()
-        eligibleAudio(info.audioStreams).distinctBy(::variantId)
-            .map { audio ->
+        val selected = eligibleAudio(info.audioStreams).distinctBy(::variantId)
+        val chapters = Chapters.fromSegments(info.streamSegments.orEmpty(), info.duration)
+            .ifEmpty { Chapters.fromDescription(Chapters.plainText(info.description), info.duration) }
+        if (preparedDownloads.size > 24) preparedDownloads.clear()
+        preparedDownloads[trackId] = selected.associate { audio ->
+            variantId(audio) to ResolvedStream(
+                trackId, audio.content, audio.format?.mimeType, audio.averageBitrate,
+                expiryOf(audio.content), chapters = chapters,
+            )
+        }
+        selected.map { audio ->
                 val exact = audio.itagItem?.contentLength?.takeIf { it > 0 }
                 val bitrate = audio.averageBitrate
                 val estimate = if (exact == null && bitrate > 0 && info.duration > 0) {
@@ -114,6 +126,8 @@ class NewPipeStreamSource(
     }
 
     override suspend fun resolveDownloadVariant(trackId: String, variantId: String): ResolvedStream = io {
+        preparedDownloads[trackId]?.get(variantId)?.takeIf { it.expiresAtMillis > System.currentTimeMillis() }
+            ?.let { return@io it }
         val info = StreamInfo.getInfo(yt, "https://www.youtube.com/watch?v=$trackId")
         if (info.streamType.isLive()) throw ExtractionException("Cannot download live audio")
         val audio = eligibleAudio(info.audioStreams).firstOrNull { variantId(it) == variantId }
