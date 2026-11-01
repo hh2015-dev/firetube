@@ -57,6 +57,67 @@ class DriveLibrary(
         }.getOrDefault(emptyList())
     }
 
+    /**
+     * Scan one real folder and all subfolders only after the user requests a preview.
+     * Metadata listings are cached so the same tree can be navigated while offline.
+     */
+    suspend fun planFolderDownload(folderId: String, driveId: String? = null): DriveFolderPlan {
+        if (!access.connected) throw IOException("Connect Google Drive before scanning a folder")
+        val namespace = access.namespace ?: throw IOException("Google Drive account not verified")
+        val plan = DriveFolderPlanner.scan(folderId, namespace) { id ->
+            if (!access.connected || access.namespace != namespace)
+                throw IOException("Google Drive account changed during folder scan")
+            list(id, driveId)
+        }
+        if (access.namespace != namespace) throw IOException("Google Drive account changed during folder scan")
+        return plan
+    }
+
+    /**
+     * An explicit second click starts sequential, cancellable downloads. Previously saved
+     * files are reused; cancellation leaves all completed files playable offline.
+     * Individual failures are counted, never silently described as a complete folder.
+     */
+    suspend fun downloadFolder(
+        plan: DriveFolderPlan,
+        onProgress: suspend (DriveFolderProgress) -> Unit = {},
+    ): DriveFolderResult = withContext(Dispatchers.IO) {
+        if (!access.connected || plan.accountNamespace != access.namespace)
+            throw IOException("Connect the same Google Drive account before downloading")
+        val remainingBytes = plan.audio.asSequence().filterNot { isOffline(it.effectiveId) }
+            .mapNotNull { it.size?.toLongOrNull()?.takeIf { bytes -> bytes >= 0 } }
+            .fold(0L) { sum, size ->
+                if (Long.MAX_VALUE - sum < size) Long.MAX_VALUE else sum + size
+            }
+        if (remainingBytes > (context.noBackupFilesDir.usableSpace - 10_000_000L).coerceAtLeast(0L))
+            throw IOException("Not enough free storage for the selected folder")
+
+        var downloaded = 0
+        var alreadySaved = 0
+        val failures = mutableListOf<String>()
+        onProgress(DriveFolderProgress(0, plan.audio.size, 0, 0, 0, null))
+        for ((index, entry) in plan.audio.withIndex()) {
+            currentCoroutineContext().ensureActive()
+            if (!access.connected || plan.accountNamespace != access.namespace)
+                throw IOException("Google Drive account changed; download stopped")
+            if (isOffline(entry.effectiveId)) {
+                alreadySaved++
+            } else {
+                try {
+                    downloadSelected(entry)
+                    downloaded++
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    failures.add(entry.name)
+                }
+            }
+            onProgress(DriveFolderProgress(index + 1, plan.audio.size, downloaded,
+                alreadySaved, failures.size, entry.name))
+        }
+        DriveFolderResult(downloaded, alreadySaved, failures)
+    }
+
     suspend fun list(folderId: String, driveId: String? = null): List<DriveEntry> = withContext(Dispatchers.IO) {
         if (folderId == SHARED_DRIVES) {
             val drives = listSharedDrives()

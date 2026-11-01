@@ -1,6 +1,7 @@
 package com.palmerintech.firetube.ui.library
 
 import android.app.Activity
+import android.text.format.Formatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -32,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
@@ -49,7 +51,13 @@ import com.palmerintech.firetube.AppContainer
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.drive.DriveEntry
 import com.palmerintech.firetube.drive.DriveLibrary
+import com.palmerintech.firetube.drive.DriveFolderPlan
+import com.palmerintech.firetube.drive.DriveFolderProgress
+import com.palmerintech.firetube.drive.DriveFolderResult
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 /**
@@ -63,6 +71,7 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
     val access = container.driveAccess
     val library = container.driveLibrary
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val folders = remember { mutableStateListOf(DriveEntry(DriveLibrary.ROOT, "My Drive", DriveEntry.FOLDER_MIME)) }
     val folder = folders.last()
     var connected by remember { mutableStateOf(access.connected) }
@@ -73,6 +82,12 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
     val changed = remember { mutableStateMapOf<String, Boolean>() }
     var toRemove by remember { mutableStateOf<DriveEntry?>(null) }
     var refresh by remember { mutableStateOf(0) }
+    var scanningFolder by remember { mutableStateOf<String?>(null) }
+    var plannedFolder by remember { mutableStateOf<Pair<DriveEntry, DriveFolderPlan>?>(null) }
+    var runningFolderJob by remember { mutableStateOf<Job?>(null) }
+    var folderProgress by remember { mutableStateOf<DriveFolderProgress?>(null) }
+    var folderResult by remember { mutableStateOf<DriveFolderResult?>(null) }
+    var folderBlocked by remember { mutableStateOf(0) }
 
     suspend fun reload(folderId: String, online: Boolean, driveId: String?) {
         loading = true
@@ -135,6 +150,33 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         }
     }
 
+    // Resolve localized messages within composition; callbacks must not read resources from
+    // LocalContext, which would miss configuration changes.
+    val scanFailedMessage = stringResource(R.string.drive_folder_scan_failed)
+    val cancelledMessage = stringResource(R.string.drive_folder_cancelled)
+    val downloadFailedMessage = stringResource(R.string.drive_folder_download_failed)
+
+    // Scanning only requests Drive metadata. Downloading starts after a second, explicit confirmation.
+    fun prepareFolder(entry: DriveEntry) {
+        if (!connected || scanningFolder != null || runningFolderJob != null) return
+        scanningFolder = entry.effectiveId
+        error = null
+        scope.launch {
+            try {
+                val driveId = if (folder.effectiveId == DriveLibrary.SHARED_DRIVES)
+                    entry.effectiveId else sharedDriveId
+                val plan = library.planFolderDownload(entry.effectiveId, driveId)
+                plannedFolder = entry to plan
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                error = scanFailedMessage
+            } finally {
+                scanningFolder = null
+            }
+        }
+    }
+
     Column {
         TopAppBar(
             title = { Text(if (folders.size == 1) stringResource(R.string.drive_library_title) else folder.name) },
@@ -183,6 +225,19 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                         TextButton(onClick = { folders.add(entry) }) {
                             Text(stringResource(R.string.action_open))
                         }
+                        if (connected && !entry.effectiveId.startsWith("virtual:")) {
+                            if (scanningFolder == entry.effectiveId) {
+                                CircularProgressIndicator(Modifier.padding(8.dp))
+                            } else {
+                                IconButton(
+                                    onClick = { prepareFolder(entry) },
+                                    enabled = scanningFolder == null && runningFolderJob == null,
+                                ) {
+                                    Icon(Icons.Default.Download,
+                                        stringResource(R.string.drive_download_folder))
+                                }
+                            }
+                        }
                     } else {
                         // A Play click is the only path from the catalog to the media player.
                         IconButton(onClick = {
@@ -194,7 +249,7 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                                     container.player.play(listOf(track))
                                 } catch (_: Exception) { error = "Audio playback could not start." }
                             }
-                        }, enabled = connected || library.isOffline(entry.effectiveId)) {
+                        }, enabled = (connected || library.isOffline(entry.effectiveId)) && runningFolderJob == null) {
                             Icon(Icons.Default.PlayArrow, stringResource(R.string.drive_play))
                         }
                         if (library.isOffline(entry.effectiveId)) {
@@ -221,7 +276,7 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                                         working.remove(entry.effectiveId)
                                     }
                                 }
-                            }, enabled = connected && entry.canDownload) {
+                            }, enabled = connected && entry.canDownload && runningFolderJob == null) {
                                 Icon(Icons.Default.Download, stringResource(R.string.drive_download))
                             }
                         }
@@ -230,6 +285,107 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
             }
         }
     }
+    plannedFolder?.let { (entry, plan) ->
+        AlertDialog(
+            onDismissRequest = { plannedFolder = null },
+            title = { Text(stringResource(R.string.drive_folder_confirm_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(entry.name)
+                    Text(stringResource(R.string.drive_folder_confirm_summary,
+                        plan.audio.size, plan.foldersVisited, plan.blockedFiles,
+                        Formatter.formatShortFileSize(context, plan.totalKnownBytes), plan.unknownSizes))
+                    if (plan.audio.isEmpty()) {
+                        Text(stringResource(R.string.drive_folder_no_audio))
+                    }
+                }
+            },
+            confirmButton = {
+                if (plan.audio.isNotEmpty()) {
+                    TextButton(onClick = {
+                        plannedFolder = null
+                        folderBlocked = plan.blockedFiles
+                        folderProgress = null
+                        runningFolderJob = scope.launch {
+                            try {
+                                // Saving track identities makes the cached folder tree playable offline.
+                                val tracks = plan.audio.map(container.driveAudio::track)
+                                container.library.saveTracks(tracks)
+                                tracks.forEach(container.resolver::remember)
+                                val result = library.downloadFolder(plan) { progress ->
+                                    withContext(Dispatchers.Main) { folderProgress = progress }
+                                }
+                                folderResult = result
+                            } catch (e: CancellationException) {
+                                // A stopped batch keeps complete downloads from earlier in the batch.
+                                error = cancelledMessage
+                                throw e
+                            } catch (_: Exception) {
+                                error = downloadFailedMessage
+                            } finally {
+                                runningFolderJob = null
+                                folderProgress = null
+                                refresh++
+                            }
+                        }
+                    }) { Text(stringResource(R.string.drive_folder_start)) }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { plannedFolder = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (runningFolderJob != null) {
+        val progress = folderProgress
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text(stringResource(R.string.drive_folder_progress_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    CircularProgressIndicator()
+                    if (progress != null) {
+                        Text(stringResource(R.string.drive_folder_progress,
+                            progress.finished, progress.total, progress.downloaded,
+                            progress.alreadySaved, progress.failed, progress.lastFile.orEmpty()))
+                    } else {
+                        Text(stringResource(R.string.drive_scanning_folder))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { runningFolderJob?.cancel() }) {
+                    Text(stringResource(R.string.drive_folder_cancel))
+                }
+            },
+        )
+    }
+
+    folderResult?.let { result ->
+        AlertDialog(
+            onDismissRequest = { folderResult = null },
+            title = { Text(stringResource(R.string.drive_folder_done_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.drive_folder_done_summary,
+                        result.downloaded, result.alreadySaved, result.failedFiles.size,
+                        folderBlocked))
+                    if (result.failedFiles.isNotEmpty()) {
+                        Text(result.failedFiles.take(5).joinToString("\n"))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { folderResult = null }) {
+                    Text(stringResource(R.string.drive_folder_close))
+                }
+            },
+        )
+    }
+
     toRemove?.let { entry ->
         AlertDialog(
             onDismissRequest = { toRemove = null },

@@ -385,5 +385,20 @@
     <string name="drive_available_offline">Saved for offline playback</string>
     <string name="drive_play">Play selected audio</string>
     <string name="drive_download">Download for offline</string>
+    <string name="drive_download_folder">Download whole folder for offline listening</string>
+    <string name="drive_scanning_folder">Preparing the selected folder…</string>
+    <string name="drive_folder_confirm_title">Download entire folder?</string>
+    <string name="drive_folder_confirm_summary">%1$d audio files in %2$d folders. %3$d restricted files will be skipped. Known size: %4$s (%5$d files with unknown size). Already saved copies will be reused.</string>
+    <string name="drive_folder_no_audio">No downloadable audio files were found.</string>
+    <string name="drive_folder_scan_failed">Could not scan all subfolders. Nothing was downloaded.</string>
+    <string name="drive_folder_start">Download folder</string>
+    <string name="drive_folder_progress_title">Downloading folder</string>
+    <string name="drive_folder_progress">%1$d of %2$d files processed. %3$d downloaded, %4$d already saved, %5$d failed. Last file: %6$s</string>
+    <string name="drive_folder_cancel">Stop downloading</string>
+    <string name="drive_folder_cancelled">Folder download stopped. Completed files remain available offline.</string>
+    <string name="drive_folder_download_failed">Folder download stopped because of an error. Completed files remain available offline.</string>
+    <string name="drive_folder_done_title">Folder download finished</string>
+    <string name="drive_folder_done_summary">Downloaded: %1$d. Already saved: %2$d. Failed: %3$d. Restricted: %4$d.</string>
+    <string name="drive_folder_close">Close</string>
     <string name="drive_remove_offline">Remove offline copy</string>
 </resources>
