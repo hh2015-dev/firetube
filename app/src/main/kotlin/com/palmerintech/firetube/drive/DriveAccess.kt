@@ -28,6 +28,7 @@ class DriveAccess(private val context: Context, private val httpClient: OkHttpCl
     }
 
     private val client get() = Identity.getAuthorizationClient(context)
+    private val safeClient = httpClient.newBuilder().followRedirects(false).followSslRedirects(false).build()
     private var token: String? = null
     private var accountId: String? = null
     private val preferences = context.getSharedPreferences("firetube-drive-local-state", Context.MODE_PRIVATE)
@@ -61,7 +62,7 @@ class DriveAccess(private val context: Context, private val httpClient: OkHttpCl
             .url("https://www.googleapis.com/drive/v3/about?fields=user(permissionId)")
             .header("Authorization", "Bearer ${bearerToken()}")
             .build()
-        val permissionId = httpClient.newCall(request).execute().use { response ->
+        val permissionId = safeClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) throw IOException("Drive account verification failed (HTTP ${response.code})")
             JSONObject(response.body.string()).getJSONObject("user").getString("permissionId")
         }
