@@ -15,12 +15,15 @@ data class DriveEntry(
     val capabilities: DriveCapabilities? = null,
     val shortcutDetails: DriveShortcut? = null,
 ) {
-    val isFolder: Boolean get() = mimeType == FOLDER_MIME
-    val isAudio: Boolean get() = DriveAudioTypes.isAudio(name, mimeType)
+    val effectiveId: String get() = if (mimeType == SHORTCUT_MIME) shortcutDetails?.targetId ?: id else id
+    val isFolder: Boolean get() = mimeType == FOLDER_MIME ||
+        (mimeType == SHORTCUT_MIME && shortcutDetails?.targetMimeType == FOLDER_MIME)
+    val isAudio: Boolean get() = DriveAudioTypes.isAudio(name, if (mimeType == SHORTCUT_MIME) shortcutDetails?.targetMimeType.orEmpty() else mimeType)
     val canDownload: Boolean get() = capabilities?.canDownload != false
 
     companion object {
         const val FOLDER_MIME = "application/vnd.google-apps.folder"
+        const val SHORTCUT_MIME = "application/vnd.google-apps.shortcut"
     }
 }
 
