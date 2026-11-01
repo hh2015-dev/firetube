@@ -59,8 +59,8 @@ android {
     buildTypes {
         // Side-by-side test APK: never overwrite a differently signed personal installation.
         debug {
-            applicationIdSuffix = ".offlinespeedtest"
-            versionNameSuffix = "-offlinespeedtest"
+            applicationIdSuffix = ".drivepreview"
+            versionNameSuffix = "-drivepreview"
         }
         release {
             isMinifyEnabled = true
