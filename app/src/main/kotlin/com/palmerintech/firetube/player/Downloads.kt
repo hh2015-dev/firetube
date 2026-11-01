@@ -5,6 +5,8 @@ import android.content.Context
 import android.os.SystemClock
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.offline.Download
+import androidx.media3.exoplayer.offline.DefaultDownloadIndex
+import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadNotificationHelper
 import androidx.media3.exoplayer.offline.DownloadRequest
@@ -40,12 +42,20 @@ class Downloads(
     private val chapterStore: ChapterStore,
 ) {
 
+    private val offlineCacheDataSource = CacheDataSource.Factory()
+        .setCache(stack.downloadCache)
+        .setUpstreamDataSourceFactory(stack.downloadUpstreamFactory)
+        .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+
     val manager = DownloadManager(
         context,
-        stack.database,
-        stack.downloadCache,
-        stack.downloadUpstreamFactory,
-        Executors.newFixedThreadPool(2),
+        DefaultDownloadIndex(stack.database),
+        FastAudioDownloaderFactory(
+            stack.downloadCache,
+            offlineCacheDataSource,
+            stack.networkFactory,
+            Executors.newFixedThreadPool(2),
+        ),
     ).apply { maxParallelDownloads = 2 }
 
     private val _state = MutableStateFlow<Map<String, DownloadInfo>>(emptyMap())
