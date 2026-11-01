@@ -37,7 +37,8 @@ class YouTubeDataSource(
 
     override fun open(dataSpec: DataSpec): Long {
         val id = MediaItems.trackIdOf(dataSpec.uri) ?: return upstream.open(dataSpec)
-        val first = resolveOrThrow(id, forceRefresh = false)
+        val variant = dataSpec.uri.getQueryParameter("offlineQuality")
+        val first = resolveOrThrow(id, forceRefresh = false, variantId = variant)
         val wantsLive = MediaItems.isLiveUri(dataSpec.uri)
         if (first.live != wantsLive) throw StreamKindException(live = first.live)
         return try {
@@ -46,14 +47,17 @@ class YouTubeDataSource(
             if (e.responseCode != 403 && e.responseCode != 410) throw e
             Timber.w("HTTP %d for %s; re-resolving", e.responseCode, id)
             upstream.close()
-            val retry = resolveOrThrow(id, forceRefresh = true)
+            val retry = resolveOrThrow(id, forceRefresh = true, variantId = variant)
             upstream.open(dataSpec.withUri(retry.url.toUri()))
         }
     }
 
     /** Surfaces extractor failures as IOExceptions so the player reports them as load errors. */
-    private fun resolveOrThrow(id: String, forceRefresh: Boolean) = try {
-        runBlocking { resolver.resolve(id, forceRefresh) }
+    private fun resolveOrThrow(id: String, forceRefresh: Boolean, variantId: String?) = try {
+        runBlocking {
+            if (variantId == null) resolver.resolve(id, forceRefresh)
+            else resolver.resolveDownloadVariant(id, variantId, forceRefresh)
+        }
     } catch (e: ExtractionException) {
         throw StreamUnavailableException(e.permanent, e)
     }
