@@ -399,6 +399,13 @@
     <string name="drive_folder_download_failed">Folder download stopped because of an error. Completed files remain available offline.</string>
     <string name="drive_folder_done_title">Folder download finished</string>
     <string name="drive_folder_done_summary">Downloaded: %1$d. Already saved: %2$d. Failed: %3$d. Restricted: %4$d.</string>
+    <string name="drive_save_folder_playlist">Save folder as playlist</string>
+    <string name="drive_playlist_confirm_title">Save as playlist?</string>
+    <string name="drive_playlist_confirm_summary">Add %1$d songs from %2$d folders to Library → Playlists. %3$d restricted files are excluded. This does not download anything.</string>
+    <string name="drive_playlist_saved">Folder saved in Library → Playlists. Open it there to play songs.</string>
+    <string name="drive_playlist_already_saved">This folder is already in Library → Playlists. Existing edits were preserved.</string>
+    <string name="drive_playlist_failed">Could not save the folder as a playlist. Reconnect to Google Drive or review cached folder listings.</string>
+    <string name="drive_playlist_save">Save playlist</string>
     <string name="drive_folder_close">Close</string>
     <string name="drive_remove_offline">Remove offline copy</string>
 </resources>
