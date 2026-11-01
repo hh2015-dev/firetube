@@ -1,6 +1,7 @@
 package com.palmerintech.firetube.player
 
 import android.content.Context
+import com.palmerintech.firetube.drive.DriveLibrary
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.DataSource
@@ -22,6 +23,7 @@ class MediaStack(
     httpClient: OkHttpClient,
     resolver: StreamResolver,
     streamCacheMb: Int,
+    private val driveLibrary: DriveLibrary? = null,
     /** Current audio quality tag; part of the song-cache key so different bitrates never mix. */
     private val qualityTag: () -> String,
 ) {
@@ -68,6 +70,8 @@ class MediaStack(
                 .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR),
         )
     val playbackFactory: DataSource.Factory = DataSource.Factory {
-        PlaybackDataSource(cachedFactory.createDataSource(), LocalPlaybackDataSource(context, resolver), DocumentPlaybackDataSource(context, resolver))
+        PlaybackDataSource(cachedFactory.createDataSource(), LocalPlaybackDataSource(context, resolver),
+            DocumentPlaybackDataSource(context, resolver),
+            driveLibrary?.let { DrivePlaybackDataSource(it, httpClient, resolver) })
     }
 }
