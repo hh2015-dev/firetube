@@ -25,6 +25,18 @@ class DriveModelsTest {
         assertTrue(DriveAudioTypes.isAudio("name", "audio/flac"))
     }
 
+    @Test fun shortcutsRetainVisibleNamesButPointToTheirActualTargets() {
+        val folder = DriveEntry("shortcut-1", "ملفاتي", DriveEntry.SHORTCUT_MIME,
+            shortcutDetails = DriveShortcut("real-folder-id", DriveEntry.FOLDER_MIME))
+        val audio = DriveEntry("shortcut-2", "שיר בעברית", DriveEntry.SHORTCUT_MIME,
+            shortcutDetails = DriveShortcut("real-audio-id", "audio/mpeg"))
+        assertTrue(folder.isFolder)
+        assertTrue(audio.isAudio)
+        assertEquals("real-folder-id", folder.effectiveId)
+        assertEquals("real-audio-id", audio.effectiveId)
+        assertEquals(listOf(folder, audio), DriveAudioTypes.visible(listOf(audio, folder)))
+    }
+
     @Test fun driveIdentityIsStableAndNeverConflatedWithYouTubeOrLocal() {
         val id = "abc_123-drive"
         val drive = TrackIdentity.forSource(TrackIdentity.DRIVE, id)
