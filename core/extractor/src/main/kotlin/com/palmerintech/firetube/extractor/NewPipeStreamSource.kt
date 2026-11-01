@@ -125,9 +125,9 @@ class NewPipeStreamSource(
             .sortedWith(compareBy<DownloadVariant> { it.bitrateKbps }.thenBy { it.mimeType })
     }
 
-    override suspend fun resolveDownloadVariant(trackId: String, variantId: String): ResolvedStream = io {
-        preparedDownloads[trackId]?.get(variantId)?.takeIf { it.expiresAtMillis > System.currentTimeMillis() }
-            ?.let { return@io it }
+    override suspend fun resolveDownloadVariant(trackId: String, variantId: String, forceRefresh: Boolean): ResolvedStream = io {
+        if (!forceRefresh) preparedDownloads[trackId]?.get(variantId)
+            ?.takeIf { it.expiresAtMillis > System.currentTimeMillis() }?.let { return@io it }
         val info = StreamInfo.getInfo(yt, "https://www.youtube.com/watch?v=$trackId")
         if (info.streamType.isLive()) throw ExtractionException("Cannot download live audio")
         val audio = eligibleAudio(info.audioStreams).firstOrNull { variantId(it) == variantId }
