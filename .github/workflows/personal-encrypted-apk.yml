@@ -1,19 +1,19 @@
-name: Private encrypted offline preview APK (free public runner)
+name: Private encrypted fast audio download experiment APK
 
 on:
   push:
-    branches: [dev/offline-apk-test]
+    branches: [dev/offline-speed-test]
 
 permissions:
   contents: read
 
 concurrency:
-  group: firetube-offline-preview-${{ github.ref }}
+  group: firetube-offline-speed-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   encrypted-debug-apk:
-    if: github.repository == 'hh2015-dev/firetube' && github.ref == 'refs/heads/dev/offline-apk-test'
+    if: github.repository == 'hh2015-dev/firetube' && github.ref == 'refs/heads/dev/offline-speed-test'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -38,17 +38,17 @@ jobs:
           python -m pip install --no-cache-dir 'cryptography==46.0.4'
           python tools/private-apk/encrypt_apk.py \
             app/build/outputs/apk/debug/app-debug.apk \
-            tools/private-apk/transport-public-key-offline-preview.pem \
-            secure-output/FireTube-offline-preview.apk.enc
-          test -s secure-output/FireTube-offline-preview.apk.enc
+            tools/private-apk/transport-public-key-offline-speed.pem \
+            secure-output/FireTube-offline-speed.apk.enc
+          test -s secure-output/FireTube-offline-speed.apk.enc
           rm -f app/build/outputs/apk/debug/app-debug.apk
           echo "Only AES-256-GCM ciphertext will be transferred." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Transfer encrypted bytes only, expire in one day
         uses: actions/upload-artifact@v4
         with:
-          name: firetube-offline-preview-encrypted
-          path: secure-output/FireTube-offline-preview.apk.enc
+          name: firetube-offline-speed-encrypted
+          path: secure-output/FireTube-offline-speed.apk.enc
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
