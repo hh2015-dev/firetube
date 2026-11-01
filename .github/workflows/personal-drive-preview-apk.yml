@@ -1,0 +1,67 @@
+name: Private encrypted FireTube Drive preview APK
+
+on:
+  push:
+    branches: [dev/drive-folders-offline]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: firetube-drive-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  encrypted-drive-preview:
+    if: github.repository == 'hh2015-dev/firetube' && github.ref == 'refs/heads/dev/drive-folders-offline'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Test and build private preview with free standard runner
+        run: ./gradlew :core:extractor:test testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace
+
+      - name: Report public debug signing certificate (not a secret)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -f "$HOME/.android/debug.keystore"; then
+            keytool -list -v -keystore "$HOME/.android/debug.keystore" \
+              -alias androiddebugkey -storepass android -keypass android |
+              grep -E 'SHA1:|SHA256:'
+          else
+            echo "Debug keystore unavailable; fingerprint will be extracted from the encrypted APK locally."
+          fi
+          echo "Android OAuth package: com.palmerintech.firetube.drivepreview" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: AES-256-GCM encrypt APK before upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          python -m pip install --no-cache-dir 'cryptography==46.0.4'
+          python tools/private-apk/encrypt_apk.py \
+            app/build/outputs/apk/debug/app-debug.apk \
+            tools/private-apk/transport-public-key-drive-preview.pem \
+            secure-output/FireTube-drive-preview.apk.enc
+          test -s secure-output/FireTube-drive-preview.apk.enc
+          rm -f app/build/outputs/apk/debug/app-debug.apk
+          echo "Only encrypted binary will leave this public runner." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload ciphertext only, one-day retention
+        uses: actions/upload-artifact@v4
+        with:
+          name: firetube-drive-preview-encrypted
+          path: secure-output/FireTube-drive-preview.apk.enc
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

@@ -15,6 +15,7 @@ object MediaItems {
     private const val HOST = "track"
     private const val LOCAL_HOST = "local"
     private const val DOCUMENT_HOST = "document"
+    private const val DRIVE_HOST = "drive"
     private const val EXTRA_FILE_NAME = "firetube.fileName"
 
     /** Live streams: an HLS manifest, played straight from the network rather than through the song caches. */
@@ -26,14 +27,16 @@ object MediaItems {
     private const val EXTRA_EXTERNAL_ID = "firetube.externalId"
 
     fun uriOf(trackId: String, live: Boolean = false, sourceId: String = TrackIdentity.YOUTUBE): Uri =
-        Uri.Builder().scheme(SCHEME).authority(if (sourceId == TrackIdentity.LOCAL) LOCAL_HOST else if (sourceId == TrackIdentity.DOCUMENT) DOCUMENT_HOST else if (live) LIVE_HOST else HOST).appendPath(trackId).build()
+        Uri.Builder().scheme(SCHEME).authority(if (sourceId == TrackIdentity.LOCAL) LOCAL_HOST else if (sourceId == TrackIdentity.DOCUMENT) DOCUMENT_HOST else if (sourceId == TrackIdentity.DRIVE) DRIVE_HOST else if (live) LIVE_HOST else HOST).appendPath(trackId).build()
 
     fun isLocalUri(uri: Uri): Boolean = uri.scheme == SCHEME && uri.host == LOCAL_HOST
 
     fun isDocumentUri(uri: Uri): Boolean = uri.scheme == SCHEME && uri.host == DOCUMENT_HOST
 
+    fun isDriveUri(uri: Uri): Boolean = uri.scheme == SCHEME && uri.host == DRIVE_HOST
+
     fun trackIdOf(uri: Uri): String? =
-        if (uri.scheme == SCHEME && (uri.host == HOST || uri.host == LIVE_HOST || uri.host == LOCAL_HOST || uri.host == DOCUMENT_HOST)) uri.lastPathSegment else null
+        if (uri.scheme == SCHEME && (uri.host == HOST || uri.host == LIVE_HOST || uri.host == LOCAL_HOST || uri.host == DOCUMENT_HOST || uri.host == DRIVE_HOST)) uri.lastPathSegment else null
 
     fun isLiveUri(uri: Uri): Boolean = uri.scheme == SCHEME && uri.host == LIVE_HOST
 

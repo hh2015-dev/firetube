@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Favorite
@@ -97,6 +98,7 @@ fun LibraryScreen(
     onOpenStats: () -> Unit,
     onOpenLocal: () -> Unit,
     onOpenSoundCloud: () -> Unit,
+    onOpenDrive: () -> Unit,
     contentPadding: PaddingValues,
 ) {
     val playlists by container.library.playlists.collectAsState(emptyList())
@@ -118,6 +120,7 @@ fun LibraryScreen(
                 }
                 item { ListItemRow(Icons.Default.LibraryMusic, stringResource(R.string.local_audio_title), onClick = onOpenLocal) }
                 item { ListItemRow(Icons.Default.Link, stringResource(R.string.soundcloud_title), onClick = onOpenSoundCloud) }
+                item { ListItemRow(Icons.Default.Cloud, stringResource(R.string.drive_library_title), onClick = onOpenDrive) }
                 item { ListItemRow(Icons.Default.History, stringResource(R.string.library_recently_played)) { onOpenList(TrackList.HISTORY) } }
                 item { ListItemRow(Icons.Default.BarChart, stringResource(R.string.stats_title), stringResource(R.string.library_stats_summary), onOpenStats) }
                 item { SectionHeader(stringResource(R.string.library_playlists)) }

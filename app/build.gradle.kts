@@ -59,8 +59,8 @@ android {
     buildTypes {
         // Side-by-side test APK: never overwrite a differently signed personal installation.
         debug {
-            applicationIdSuffix = ".offlinespeedtest"
-            versionNameSuffix = "-offlinespeedtest"
+            applicationIdSuffix = ".drivepreview"
+            versionNameSuffix = "-drivepreview"
         }
         release {
             isMinifyEnabled = true
@@ -151,6 +151,8 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play)
     implementation(libs.googleid)
+    // Required for Android's first-party, user-consented Drive read-only authorization.
+    implementation("com.google.android.gms:play-services-auth:22.0.0")
 
     implementation(libs.timber)
 
