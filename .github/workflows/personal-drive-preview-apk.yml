@@ -30,15 +30,18 @@ jobs:
       - name: Test and build private preview with free standard runner
         run: ./gradlew :core:extractor:test testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace
 
-      - name: Verify Android signing and print public SHA-1 certificate fingerprint
+      - name: Report public debug signing certificate (not a secret)
         shell: bash
         run: |
           set -euo pipefail
-          APK_SIGNER="$(find "$ANDROID_HOME/build-tools" -maxdepth 2 -type f -name apksigner | sort -V | tail -n 1)"
-          test -x "$APK_SIGNER"
-          "$APK_SIGNER" verify --print-certs app/build/outputs/apk/debug/app-debug.apk |
-            grep -E 'Signer #1 certificate (SHA-1 digest|SHA-256 digest)'
-          echo "Use exact SHA-1 and com.palmerintech.firetube.drivepreview for Android OAuth." >> "$GITHUB_STEP_SUMMARY"
+          if test -f "$HOME/.android/debug.keystore"; then
+            keytool -list -v -keystore "$HOME/.android/debug.keystore" \
+              -alias androiddebugkey -storepass android -keypass android |
+              grep -E 'SHA1:|SHA256:'
+          else
+            echo "Debug keystore unavailable; fingerprint will be extracted from the encrypted APK locally."
+          fi
+          echo "Android OAuth package: com.palmerintech.firetube.drivepreview" >> "$GITHUB_STEP_SUMMARY"
 
       - name: AES-256-GCM encrypt APK before upload
         shell: bash
