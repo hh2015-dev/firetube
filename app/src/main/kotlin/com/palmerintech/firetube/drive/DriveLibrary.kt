@@ -35,7 +35,7 @@ class DriveLibrary(
 
     private fun accountDirectory(): File {
         val namespace = access.namespace ?: throw IOException("Connect Google Drive first")
-        return File(context.filesDir, "drive-library/$namespace").apply { mkdirs() }
+        return File(context.noBackupFilesDir, "drive-library/$namespace").apply { mkdirs() }
     }
 
     private fun keyOf(id: String): String = MessageDigest.getInstance("SHA-256")
@@ -116,7 +116,7 @@ class DriveLibrary(
         val file = audioFile(entry.id)
         if (file.isFile && file.length() > 0) return@withContext file
         val expected = entry.size?.toLongOrNull()
-        if (expected != null && expected > context.filesDir.usableSpace - 10_000_000L)
+        if (expected != null && expected > context.noBackupFilesDir.usableSpace - 10_000_000L)
             throw IOException("Not enough space on the device for this audio file")
         val partial = File(file.parentFile, file.name + ".partial")
         // A previous interrupted attempt must not be trusted or shown as offline.
