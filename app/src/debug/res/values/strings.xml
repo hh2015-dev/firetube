@@ -1,0 +1,4 @@
+<resources>
+    <!-- Installed alongside FireTube without changing its data or signing requirements. -->
+    <string name="app_name" translatable="false">FireTube Offline Test</string>
+</resources>
