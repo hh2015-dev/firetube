@@ -24,7 +24,7 @@ class OfflineQualityResolverTest {
         override suspend fun downloadVariants(trackId: String) =
             listOf(DownloadVariant("itag:140", 128, "audio/mp4", 3_840_000, false),
                 DownloadVariant("itag:249", 50, "audio/webm", 1_500_000, true))
-        override suspend fun resolveDownloadVariant(trackId: String, variantId: String): ResolvedStream {
+        override suspend fun resolveDownloadVariant(trackId: String, variantId: String, forceRefresh: Boolean): ResolvedStream {
             offlineCalls++
             return ResolvedStream(trackId, "https://example.invalid/$variantId", "audio/webm", 50, Long.MAX_VALUE)
         }
