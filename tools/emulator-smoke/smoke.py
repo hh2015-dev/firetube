@@ -43,8 +43,9 @@ try:
         if u.inspect_apk(root/(str(version)+'.apk'))!=version:raise RuntimeError('APK version mismatch')
         mark('original_'+str(version)+'_signature_package',True)
     # A freshly created disposable emulator must not contain an existing user installation.
-    if u.adb('-s',serial,'shell','pm','path',u.PACKAGE):raise RuntimeError('Expected empty disposable emulator')
-    u.adb('-s',serial,'install',str(root/'215.apk'));mark('install_original_215',u.installed_version(serial)==215)
+    if ('package:'+u.PACKAGE) in packages.splitlines():raise RuntimeError('Expected empty disposable emulator')
+    mark('empty_disposable_emulator_confirmed',True)
+    u.adb('-s',serial,'install','-g',str(root/'215.apk'));mark('install_original_215',u.installed_version(serial)==215)
     if u.installed_version(serial)!=215:raise RuntimeError('Old install version mismatch')
     start(serial);mark('launch_215_foreground',True)
     u.adb('-s',serial,'exec-out','run-as',u.PACKAGE,'id');mark('run_as_access_215',True)
@@ -66,7 +67,8 @@ except Exception as exc:
     result['status']='FAIL_SMOKE'
     # No raw device/logcat dumps, private URLs or account credentials.
     result['error_type']=type(exc).__name__
-    print('Smoke test failed: '+type(exc).__name__,flush=True)
+    result['safe_error']=str(exc) if isinstance(exc,RuntimeError) else 'Non-runtime error (details suppressed)'
+    print('Smoke test failed: '+result['safe_error'],flush=True)
 finally:
     (REPORT/'result.json').write_text(json.dumps(result,indent=2)+'\n')
     print(json.dumps(result,indent=2),flush=True)
