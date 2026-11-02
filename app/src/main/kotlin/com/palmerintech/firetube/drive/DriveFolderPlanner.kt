@@ -24,6 +24,7 @@ object DriveFolderPlanner {
     suspend fun scan(
         rootFolderId: String,
         accountNamespace: String,
+        includeRestrictedAudio: Boolean = false,
         children: suspend (folderId: String) -> List<DriveEntry>,
     ): DriveFolderPlan {
         require(rootFolderId.isNotBlank() && !rootFolderId.startsWith("virtual:")) {
@@ -50,7 +51,7 @@ object DriveFolderPlanner {
                     if (seenAudio.size > MAX_ITEMS) throw IOException("Folder contains too many audio files")
                     if (!entry.canDownload) {
                         blocked++
-                        continue
+                        if (!includeRestrictedAudio) continue
                     }
                     chosen += entry
                     val size = entry.size?.toLongOrNull()?.takeIf { it >= 0 }
