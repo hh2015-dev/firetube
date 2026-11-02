@@ -38,6 +38,24 @@ class DriveLibrary(
             "nextPageToken,incompleteSearch,files(id,name,mimeType,parents,size,modifiedTime,capabilities(canDownload),shortcutDetails(targetId,targetMimeType))"
     }
 
+    private val favoriteFolderPrefs = context.getSharedPreferences("drive-favorite-folders", Context.MODE_PRIVATE)
+    private val _favoriteFolderIds = MutableStateFlow(
+        favoriteFolderPrefs.getStringSet("playlist-ids", emptySet())?.toSet().orEmpty()
+    )
+    /** These IDs point to ordinary, editable local playlists, not Drive folders on the network. */
+    val favoriteFolderIds = _favoriteFolderIds.asStateFlow()
+
+    fun setFolderFavoritePlaylist(playlistId: String, favorite: Boolean) {
+        require(playlistId.startsWith("drive-folder-")) { "Only Drive folder playlists can be pinned" }
+        val updated = if (favorite) _favoriteFolderIds.value + playlistId
+            else _favoriteFolderIds.value - playlistId
+        if (!favoriteFolderPrefs.edit().putStringSet("playlist-ids", updated.toSet()).commit())
+            throw IOException("Could not persist favorite folder")
+        _favoriteFolderIds.value = updated
+    }
+
+    fun isFolderFavoritePlaylist(playlistId: String): Boolean = playlistId in _favoriteFolderIds.value
+
     private val json = Json { ignoreUnknownKeys = true }
     private val _offlineRevision = MutableStateFlow(0L)
     /** Updates all Drive and playlist badges after a local copy changes. */
