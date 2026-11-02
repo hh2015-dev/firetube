@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -470,9 +471,13 @@ fun RemotePlaylistScreen(container: AppContainer, url: String, onBack: () -> Uni
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit, contentPadding: PaddingValues) {
+fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit,
+    onOpenPlaylist: (String) -> Unit, contentPadding: PaddingValues) {
     val favorites by container.library.favorites.collectAsState(emptyList())
     val history by container.library.recent(200).collectAsState(emptyList())
+    val folderFavorites by container.driveLibrary.favoriteFolderIds.collectAsState()
+    val allPlaylists by container.library.playlists.collectAsState(emptyList())
+    val pinnedFolders = if (list == TrackList.FAVORITES) allPlaylists.filter { it.id in folderFavorites } else emptyList()
     val driveRevision by container.driveLibrary.offlineRevision.collectAsState()
     val downloads by container.downloads.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -492,8 +497,25 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
             },
         )
         LazyColumn(contentPadding = contentPadding) {
+            if (list == TrackList.FAVORITES && pinnedFolders.isNotEmpty()) {
+                item { SectionHeader(stringResource(R.string.drive_favorite_folders_section)) }
+                items(pinnedFolders, key = { it.id }) { pinned ->
+                    Row(Modifier.fillMaxWidth().clickable { onOpenPlaylist(pinned.id) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Folder, null)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(pinned.name, style = MaterialTheme.typography.bodyLarge)
+                            Text(pluralStringResource(R.plurals.song_count,
+                                pinned.trackCount, pinned.trackCount),
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
             item { PlayShuffleRow(tracks, onPlay = { container.player.play(tracks) }, onShuffle = { container.player.play(tracks, shuffle = true) }) }
-            if (tracks.isEmpty()) {
+            if (tracks.isEmpty() && pinnedFolders.isEmpty()) {
                 item {
                     when (list) {
                         TrackList.FAVORITES -> EmptyState(Icons.Default.Favorite, stringResource(R.string.favorites_empty), stringResource(R.string.favorites_empty_body))
