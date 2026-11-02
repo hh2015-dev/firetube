@@ -18,6 +18,7 @@ import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.Favorite
@@ -60,6 +61,7 @@ import com.palmerintech.firetube.extractor.Track
 import com.palmerintech.firetube.extractor.TrackIdentity
 import com.palmerintech.firetube.ui.artistLabel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 /** Opens the per-track actions sheet from anywhere in the UI. */
 class TrackMenuController {
@@ -86,6 +88,12 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
     val isFavorite by container.library.isFavorite(track.id).collectAsState(false)
     val downloads by container.downloads.state.collectAsState()
     val download = downloads[track.id]
+    val driveRevision by container.driveLibrary.offlineRevision.collectAsState()
+    val driveOffline = remember(track.id, driveRevision) {
+        track.sourceId == TrackIdentity.DRIVE && container.driveLibrary.isOffline(track.externalId)
+    }
+    var driveBusy by remember(track.id) { mutableStateOf(false) }
+    var confirmDriveRemoval by remember(track.id) { mutableStateOf(false) }
     var addToPlaylist by rememberSaveable { mutableStateOf(false) }
     var choosingDownload by remember(track.id) { mutableStateOf(false) }
 
@@ -99,6 +107,39 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
                 addToPlaylist = false
                 dismiss()
                 if (name != null) onShowMessage(resources.getString(R.string.menu_added_to_playlist, name))
+            },
+        )
+        return
+    }
+
+    if (confirmDriveRemoval) {
+        AlertDialog(
+            onDismissRequest = { confirmDriveRemoval = false },
+            title = { Text(stringResource(R.string.drive_remove_offline)) },
+            text = { Text(stringResource(R.string.drive_remove_copy_only, track.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDriveRemoval = false
+                    driveBusy = true
+                    scope.launch {
+                        try {
+                            container.driveLibrary.removeOffline(track.externalId)
+                            onShowMessage(resources.getString(R.string.drive_offline_removed))
+                            dismiss()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            onShowMessage(resources.getString(R.string.drive_offline_remove_failed))
+                        } finally {
+                            driveBusy = false
+                        }
+                    }
+                }) { Text(stringResource(R.string.drive_remove_offline)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDriveRemoval = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
             },
         )
         return
@@ -139,7 +180,36 @@ fun TrackMenuHost(container: AppContainer, controller: TrackMenuController, onSh
                 scope.launch { container.library.toggleFavorite(track) }; dismiss()
             }
             MenuItem(Icons.AutoMirrored.Filled.PlaylistAdd, stringResource(R.string.action_add_to_playlist)) { addToPlaylist = true }
-            when {
+            if (track.sourceId == TrackIdentity.DRIVE) {
+                when {
+                    driveBusy -> Row(Modifier.padding(24.dp)) {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.width(12.dp))
+                        Text(stringResource(R.string.drive_download))
+                    }
+                    driveOffline -> MenuItem(Icons.Default.CloudDone,
+                        stringResource(R.string.drive_remove_offline)) {
+                        confirmDriveRemoval = true
+                    }
+                    else -> MenuItem(Icons.Default.Download,
+                        stringResource(R.string.drive_download)) {
+                        driveBusy = true
+                        scope.launch {
+                            try {
+                                container.driveLibrary.downloadTrack(track)
+                                onShowMessage(resources.getString(R.string.drive_offline_saved))
+                                dismiss()
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (_: Exception) {
+                                onShowMessage(resources.getString(R.string.drive_playlist_download_failed))
+                            } finally {
+                                driveBusy = false
+                            }
+                        }
+                    }
+                }
+            } else when {
                 track.sourceId != TrackIdentity.YOUTUBE -> Unit
                 // A live stream has no end to download up to.
                 track.isLive && download == null -> Unit
