@@ -1,0 +1,77 @@
+name: Recover private Favorites APK delivery
+on:
+  push:
+    branches: [dev/favorites-private-delivery-20261102]
+    paths: [.github/workflows/favorites-private-delivery.yml]
+permissions:
+  contents: read
+jobs:
+  private-transfer:
+    if: github.repository == 'hh2015-dev/firetube'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ff0e068b9f854a187e7de4b674d9e939b9e06319
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - name: Assemble the exact previously tested source
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = ff0e068b9f854a187e7de4b674d9e939b9e06319
+          ./gradlew assembleDebug --no-daemon --stacktrace
+          test -z "$(git diff --name-only)"
+      - name: Verify package, label and cryptographic signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p secure-output
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk > secure-output/signature.txt
+          "$BUILD_TOOLS/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > secure-output/badging.txt
+          grep -F "package: name='com.palmerintech.firetube.drivefavoritespreview'" secure-output/badging.txt
+          grep -F "application-label:'FireTube Favorites Test'" secure-output/badging.txt
+          sha256sum app/build/outputs/apk/debug/app-debug.apk > secure-output/apk-sha256.txt
+          stat --printf='%s\n' app/build/outputs/apk/debug/app-debug.apk > secure-output/apk-size.txt
+          git rev-parse HEAD > secure-output/source-commit.txt
+          cat secure-output/signature.txt
+          cat secure-output/apk-sha256.txt
+      - name: Encrypt with public delivery key; private key never enters runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          cat > "$RUNNER_TEMP/delivery-public.pem" <<'PUBLICKEY'
+          -----BEGIN PUBLIC KEY-----
+          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAr0XNzYNZpAkClvK+9czK
+          As4/5toVkxut160JRmZUGzJbg2cGG//6uBoWha+TssUJUBNT35UgczyECJtn3q00
+          Btx0IhRvpny4Zrnh5qd0GzwZrhETbIDzcbLNbbVwtI5Y4bfzR6R7iZ/6RG3hbeHE
+          XgCaZVVa8DmknEWbQKRwIdyDyQ8OwGFvjX327tbqYof7rcBoYX2WQdbkQhAaozjK
+          tDLYWn07BBOXhB0AtCLqI6VvVFfgdBfrWnbdqoQSG1E6I0fA/AtMMramfsa/C6zk
+          XtiIApj5iTqSbcn8/5vCam+QYapZ4sO43K68rwAvup5YBSV+zoRPOAJ2kUSZz4lm
+          m9bqgVdwx+IE0WoPJFjY1W958nfcJt6uhYJEqpQU28heCFq+XtTWIuDr0fg28Wyw
+          KQzizyqd/Aw22OBgtEPP2JSZ7whS6e/cxQ2VJ/JYwUGz0JbJIEhwfOAMPHE4YD/m
+          0xF/7h8UoJgAQYce0mxCXG4hj5nAUvELpRqeLhyBZL65AgMBAAE=
+          -----END PUBLIC KEY-----
+          PUBLICKEY
+          python -m pip install --no-cache-dir 'cryptography==46.0.4'
+          python tools/private-apk/encrypt_apk.py app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/delivery-public.pem" secure-output/FireTube-Favorites-Test.apk.enc
+          rm -f app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: favorites-private-transfer-v2
+          path: secure-output/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
