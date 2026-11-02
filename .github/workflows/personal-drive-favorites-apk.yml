@@ -51,7 +51,7 @@ jobs:
           python -m pip install --no-cache-dir 'cryptography==46.0.4'
           python tools/private-apk/encrypt_apk.py \
             app/build/outputs/apk/debug/app-debug.apk \
-            tools/private-apk/transport-public-key-drive-preview.pem \
+            tools/private-apk/transport-public-key-local-test.pem \
             secure-output/FireTube-drive-favorites.apk.enc
           test -s secure-output/FireTube-drive-favorites.apk.enc
           rm -f app/build/outputs/apk/debug/app-debug.apk
@@ -60,7 +60,7 @@ jobs:
       - name: Upload ciphertext only, one-day retention
         uses: actions/upload-artifact@v4
         with:
-          name: firetube-drive-favorites-encrypted
+          name: firetube-drive-favorites-localkey-encrypted
           path: secure-output/FireTube-drive-favorites.apk.enc
           if-no-files-found: error
           retention-days: 1
