@@ -31,6 +31,10 @@ python3 -m unittest discover -s tools/upgrade-tests -p 'test_*.py' -v
 
 [سجل الاختبارات الثمانية](original-eight-after-fix.txt) · [سجل الاختبارات الـ21](all-tests.txt).
 
+## تحقق GitHub Actions
+
+نجح التشغيل [41463246456](https://github.com/hh2015-dev/firetube/actions/runs/41463246456) على الالتزام `803c5f3ae77d60e053213979e5a19ad3641ee98a`. نجحت خطوة Original eight tests وخطوة Full tool regression suite (mocked Android SDK) فعليًا. هذا تشغيل لاختبارات الأداة فقط؛ لا ينفذ محاكيًا أو تفويض Drive أو تنزيل صوت أو اختبار تشغيله.
+
 ## الأخطاء التي أُصلحت
 
 1. التعبير الخاص بـversionCode كان يستخدم شرطات مائلة مضاعفة داخل raw string، فيبحث عن نص حرفي بدل حدود الكلمات والأرقام. ظهر الخطأ عند تشغيل الاختبارات قبل أي تعديل.
