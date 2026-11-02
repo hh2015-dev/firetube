@@ -473,6 +473,7 @@ fun RemotePlaylistScreen(container: AppContainer, url: String, onBack: () -> Uni
 fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit, contentPadding: PaddingValues) {
     val favorites by container.library.favorites.collectAsState(emptyList())
     val history by container.library.recent(200).collectAsState(emptyList())
+    val driveRevision by container.driveLibrary.offlineRevision.collectAsState()
     val downloads by container.downloads.state.collectAsState()
     val scope = rememberCoroutineScope()
     val menu = LocalTrackMenu.current
@@ -503,11 +504,14 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
             }
             itemsIndexed(tracks, key = { i, t -> "$i:${t.id}" }) { i, t ->
                 val d = downloads[t.id]
+                val driveOffline = remember(t.id, driveRevision) {
+                    t.sourceId == TrackIdentity.DRIVE && container.driveLibrary.isOffline(t.externalId)
+                }
                 TrackRow(
                     t,
                     onClick = { container.player.play(tracks, i) },
                     onMore = { menu.open(t) },
-                    downloaded = d?.completed == true,
+                    downloaded = driveOffline || d?.completed == true,
                     trailing = if (list == TrackList.DOWNLOADS && d != null && !d.completed) {
                         {
                             Column(horizontalAlignment = Alignment.End) {
