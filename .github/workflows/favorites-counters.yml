@@ -1,4 +1,4 @@
-name: Private Favorites counters APK
+name: Counters unsigned encrypted compilation (local signing required)
 on:
   push:
     branches: [dev/favorites-separate-counters-20261102]
@@ -13,11 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      VERSION_CODE: '214'
+      VERSION_CODE: '216'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          fetch-depth: 2
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -28,8 +29,36 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           cache-read-only: true
-      - name: Unit tests, reactive UI tests, Lint and Debug APK
-        run: ./gradlew :core:extractor:test testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace
+      - name: Enforce increasing update version
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          python - <<'PYVERSION'
+          import json, pathlib, subprocess, os
+          current=json.loads(pathlib.Path('config/counters-version.json').read_text())
+          before=os.environ['BEFORE']
+          previous=215
+          if before and set(before)!={'0'}:
+              p=subprocess.run(['git','show',before+':config/counters-version.json'],capture_output=True,text=True)
+              if p.returncode==0:
+                  previous=json.loads(p.stdout)['versionCode']
+          assert current['previousVersionCode']==previous, 'Previous delivered code must match preceding source version'
+          assert current['versionCode']>previous, 'Increase versionCode before producing another update'
+          assert str(current['versionCode'])==os.environ['VERSION_CODE']
+          PYVERSION
+      - name: Unit tests, Lint and unsigned compilation only
+        run: ./gradlew :core:extractor:test testDebugUnitTest lintDebug assembleDebug -PcountersUnsignedCompilation=true --no-daemon --stacktrace
+      - name: Resolve unsigned APK from AGP metadata
+        run: |
+          python - <<'PYMETA'
+          import json,pathlib,os
+          folder=pathlib.Path('app/build/outputs/apk/debug')
+          meta=json.loads((folder/'output-metadata.json').read_text())
+          assert len(meta['elements'])==1
+          apk=folder/meta['elements'][0]['outputFile']
+          assert apk.is_file() and apk.parent==folder
+          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('APK_PATH='+str(apk)+'\n')
+          PYMETA
       - name: Record tests, package and actual signature
         shell: bash
         run: |
@@ -37,12 +66,18 @@ jobs:
           umask 077
           mkdir -p secure-output
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
-          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk > secure-output/signature.txt
-          "$BUILD_TOOLS/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > secure-output/badging.txt
-          grep -F "package: name='com.palmerintech.firetube.drivefavoritespreview' versionCode='214'" secure-output/badging.txt
-          grep -F "application-label:'FireTube Favorites Test'" secure-output/badging.txt
-          sha256sum app/build/outputs/apk/debug/app-debug.apk > secure-output/apk-sha256.txt
-          stat --printf='%s\n' app/build/outputs/apk/debug/app-debug.apk > secure-output/apk-size.txt
+          # A successful verify means CI has unexpectedly signed the file: reject it.
+          if "$BUILD_TOOLS/apksigner" verify "$APK_PATH" > "$RUNNER_TEMP/unsigned-probe.txt" 2>&1; then
+            echo '::error::Remote compiler must output an unsigned APK'; exit 1
+          fi
+          echo 'UNSIGNED: requires local approved-key signing' > secure-output/signature.txt
+          cp "$BUILD_TOOLS/lib/apksigner.jar" secure-output/apksigner.jar
+          sha256sum secure-output/apksigner.jar > secure-output/apksigner-sha256.txt
+          "$BUILD_TOOLS/aapt" dump badging "$APK_PATH" > secure-output/badging.txt
+          grep -F "package: name='com.palmerintech.firetube.drivefavoritescounterspreview' versionCode='216'" secure-output/badging.txt
+          grep -F "application-label:'FireTube Counters Test'" secure-output/badging.txt
+          sha256sum "$APK_PATH" > secure-output/apk-sha256.txt
+          stat --printf='%s\n' "$APK_PATH" > secure-output/apk-size.txt
           git rev-parse HEAD > secure-output/source-commit.txt
           cat secure-output/signature.txt
           python - <<'PY'
@@ -78,12 +113,15 @@ jobs:
           -----END PUBLIC KEY-----
           PUBLICKEY
           python -m pip install --no-cache-dir 'cryptography==46.0.4'
-          python tools/private-apk/encrypt_apk.py app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/delivery-public.pem" secure-output/FireTube-Favorites-Counters-Test.apk.enc
-          rm -f app/build/outputs/apk/debug/app-debug.apk
+          python tools/private-apk/encrypt_apk.py "$APK_PATH" "$RUNNER_TEMP/delivery-public.pem" secure-output/FireTube-Counters-Unsigned.apk.enc
+          rm -f "$APK_PATH"
       - uses: actions/upload-artifact@v4
         with:
-          name: favorites-counters-encrypted
+          name: counters-unsigned-encrypted
           path: secure-output/
           if-no-files-found: error
           retention-days: 1
           compression-level: 0
+      - name: Remove plaintext compiler output
+        if: always()
+        run: rm -f app/build/outputs/apk/debug/*.apk

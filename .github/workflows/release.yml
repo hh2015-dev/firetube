@@ -14,6 +14,8 @@ permissions:
 
 jobs:
   release:
+    # Counters is private: no public release from this branch, even if tagged.
+    if: false
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

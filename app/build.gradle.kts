@@ -1,4 +1,3 @@
-import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -17,11 +16,22 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.firebase.crashlytics")
 }
 
-// Release signing is read from keystore.properties at the repo root (git-ignored); see docs/MAINTAINING.md.
-// Without that file, release builds are produced unsigned.
-val keystoreProperties = Properties().apply {
-    val file = rootProject.file("keystore.properties")
-    if (file.exists()) file.inputStream().use { load(it) }
+// This branch builds only the installed Counters identity. No generated debug key.
+val countersVersion = groovy.json.JsonSlurper().parse(rootProject.file("config/counters-version.json")) as Map<*, *>
+val countersCode = (countersVersion["versionCode"] as Number).toInt()
+val countersPrevious = (countersVersion["previousVersionCode"] as Number).toInt()
+require(countersPrevious >= 215 && countersCode > countersPrevious) { "Increase Counters versionCode before an update" }
+providers.environmentVariable("VERSION_CODE").orNull?.let {
+    require(it == countersCode.toString()) { "VERSION_CODE disagrees with config/counters-version.json" }
+}
+// Explicit remote compilation stage: produces UNSIGNED ciphertext only, never an installable update.
+val countersUnsigned = providers.gradleProperty("countersUnsignedCompilation").orNull == "true"
+if (countersUnsigned) {
+    require(System.getenv("GITHUB_ACTIONS") == "true") { "Unsigned compilation is restricted to CI" }
+}
+fun countersEnv(name: String) = providers.environmentVariable(name).orNull
+val verifyCountersSigning by tasks.registering(Exec::class) {
+    commandLine("python3", rootProject.file("tools/counters-signing/signing.py"), "preflight")
 }
 
 android {
@@ -29,12 +39,12 @@ android {
     compileSdk = libs.versions.compileSdk.get().toInt()
 
     defaultConfig {
-        // Same id as the 1.x app so existing installs upgrade in place.
-        applicationId = "com.palmerintech.firetube"
+        // Preserve the exact installed Counters applicationId for in-place updates.
+        applicationId = "com.palmerintech.firetube.drivefavoritescounterspreview"
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
-        // 1.x ended at 95. CI may override with VERSION_CODE.
-        versionCode = providers.environmentVariable("VERSION_CODE").orNull?.toInt() ?: 213
+        // Checked-in monotonic Counters version; overrides cannot silently change it.
+        versionCode = countersCode
         versionName = "2.0.13"
         // Tip jar link (Ko-fi / Buy Me a Coffee / PayPal.me). Empty = every support prompt is hidden.
         buildConfigField("String", "DONATE_URL", "\"https://ko-fi.com/stevepalmerin\"")
@@ -42,34 +52,30 @@ android {
     }
 
     signingConfigs {
-        if (keystoreProperties.containsKey("storeFile")) {
-            create("release") {
-                storeFile = file(keystoreProperties.getProperty("storeFile"))
-                storePassword = keystoreProperties.getProperty("storePassword")
-                keyAlias = keystoreProperties.getProperty("keyAlias")
-                keyPassword = keystoreProperties.getProperty("keyPassword")
-            }
-        }
-        // A shared debug key is optional (it's git-ignored); otherwise Android's default one is used.
-        rootProject.file("config/keystore/debug.keystore").takeIf { it.exists() }?.let { key ->
-            getByName("debug") { storeFile = key }
+        create("counters") {
+            storeFile = countersEnv("COUNTERS_KEYSTORE")?.let { rootProject.file(it) }
+            storePassword = countersEnv("COUNTERS_STORE_PASSWORD")
+            keyAlias = countersEnv("COUNTERS_KEY_ALIAS")
+            keyPassword = countersEnv("COUNTERS_KEY_PASSWORD")
+            enableV2Signing = true
         }
     }
 
     buildTypes {
-        // Side-by-side test APK: never overwrite a differently signed personal installation.
         debug {
-            applicationIdSuffix = ".drivefavoritespreview"
-            versionNameSuffix = "-drivefavoritespreview"
+            versionNameSuffix = "-counterstest"
+            signingConfig = if (countersUnsigned) null else signingConfigs.getByName("counters")
         }
         release {
+            // Keep both variants compatible with the installed Counters package.
+            versionNameSuffix = "-counterstest"
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 rootProject.file("config/proguard/proguard-rules.pro"),
             )
-            signingConfig = signingConfigs.findByName("release")
+            signingConfig = if (countersUnsigned) null else signingConfigs.getByName("counters")
         }
     }
 
@@ -165,4 +171,13 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(platform(libs.androidx.compose.bom))
     testImplementation(libs.androidx.compose.ui.test.junit4)
+}
+
+// Exec has no declared outputs: certificate validation runs even for incremental builds.
+if (!countersUnsigned) {
+    tasks.configureEach {
+        if (name == "preBuild" || name.startsWith("package") || name.startsWith("validateSigning")) {
+            dependsOn(verifyCountersSigning)
+        }
+    }
 }
