@@ -382,6 +382,10 @@
     <string name="drive_offline_removed">Cópia local removida.</string>
     <string name="drive_offline_saved">Áudio salvo offline.</string>
     <string name="drive_playlist_download_failed">Não foi possível baixar alguns arquivos de áudio do Drive.</string>
+    <string name="drive_folder_toggle_favorite">Adicionar ou remover pasta dos Favoritos</string>
+    <string name="drive_favorite_folders_section">Pastas favoritas</string>
+    <string name="drive_folder_favorite_added">Pasta adicionada aos Favoritos. Abra em Biblioteca - Favoritos.</string>
+    <string name="drive_folder_favorite_failed">Não foi possível atualizar Favoritos. Conecte o Google Drive ou verifique os dados salvos.</string>
     <string name="drive_playlist_bulk_progress">Salvando áudios do Drive: %1$d de %2$d</string>
     <string name="drive_playlist_save">Salvar playlist</string>
     <string name="drive_folder_close">Fechar</string>
