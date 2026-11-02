@@ -511,6 +511,13 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
                                 pinned.trackCount, pinned.trackCount),
                                 style = MaterialTheme.typography.bodySmall)
                         }
+                        IconButton(onClick = {
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                container.driveLibrary.setFolderFavoritePlaylist(pinned.id, false)
+                            }
+                        }) {
+                            Icon(Icons.Default.Favorite, stringResource(R.string.action_remove_favorite))
+                        }
                     }
                 }
             }
