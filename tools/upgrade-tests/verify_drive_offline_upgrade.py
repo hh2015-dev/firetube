@@ -51,7 +51,7 @@ def snapshot(serial):
     listing = adb(*command, "sh", "-c", f"find {OFFLINE_ROOT} -type f", binary=False)
     paths = sorted(set(line.strip() for line in listing.splitlines() if line.strip()))
     paths = [p for p in paths if p.startswith(OFFLINE_ROOT + "/") and ".." not in p.split("/")]
-    audio = [p for p in paths if re.search(r"/audio-[a-f0-9]{64}\\.bin$", p)]
+    audio = [p for p in paths if re.search(r"/audio-[a-f0-9]{64}\.bin$", p)]
     if not audio:
         raise RuntimeError("No Drive offline audio found. Download a test file in the OLD version before baseline.")
     values = {}
@@ -67,17 +67,17 @@ def inspect_apk(apk):
     if shutil.which("aapt") is None or shutil.which("apksigner") is None:
         raise RuntimeError("aapt and apksigner from Android SDK build-tools are required")
     badging = cmd("aapt", "dump", "badging", str(apk))
-    m = re.search(r"package: name='([^']+)' versionCode='(\\d+)'", badging)
+    m = re.search(r"package: name='([^']+)' versionCode='(\d+)'", badging)
     if not m or m.group(1) != PACKAGE:
         raise RuntimeError("Unexpected APK package")
     cert = cmd("apksigner", "verify", "--print-certs", str(apk))
-    m = re.search(r"Signer #1 certificate SHA-1 digest:\\s*([0-9a-fA-F:]+)", cert)
+    m = re.search(r"Signer #1 certificate SHA-1 digest:\s*([0-9a-fA-F:]+)", cert)
     if not m:
         raise RuntimeError("Could not verify APK signing certificate")
     actual = m.group(1).replace(":", "").upper()
     if actual != EXPECTED_SHA1.replace(":", ""):
         raise RuntimeError("APK signature does not match installed Counters identity")
-    return int(re.search(r"versionCode='(\\d+)'", badging).group(1))
+    return int(re.search(r"versionCode='(\d+)'", badging).group(1))
 
 
 def main():
