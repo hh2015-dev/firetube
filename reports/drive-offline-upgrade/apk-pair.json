@@ -1,0 +1,24 @@
+[
+  {
+    "file_name": "FireTube-Counters-Test.apk",
+    "package": "com.palmerintech.firetube.drivefavoritescounterspreview",
+    "versionCode": 215,
+    "certificate_sha1": "A41B369138EBA1D50E23BF110955BD386BEB2A68",
+    "certificate_sha256": "CFE89608EDD0944E0C0D571784D6B0554AAD8AE5BAEA7968BF0DEFD956CADE12",
+    "apk_sha256": "794de4b325d769a3730d37738a92e833b0327ed414663db3a4677bc4abd8bc6c",
+    "size_bytes": 33247110,
+    "apksigner": "PASS",
+    "v2_signature": "PASS"
+  },
+  {
+    "file_name": "FireTube-Counters-Test-217-Verified.apk",
+    "package": "com.palmerintech.firetube.drivefavoritescounterspreview",
+    "versionCode": 217,
+    "certificate_sha1": "A41B369138EBA1D50E23BF110955BD386BEB2A68",
+    "certificate_sha256": "CFE89608EDD0944E0C0D571784D6B0554AAD8AE5BAEA7968BF0DEFD956CADE12",
+    "apk_sha256": "182269a9c124b04cd9f4b2f6a7d28e40541e9606b407ca7dfbfc461aa7618371",
+    "size_bytes": 33372320,
+    "apksigner": "PASS",
+    "v2_signature": "PASS"
+  }
+]

@@ -1,0 +1,26 @@
+test_current_apksigner_scheme_label (test_upgrade_regressions.RegressionTests.test_current_apksigner_scheme_label) ... ok
+test_empty_audio_rejected (test_upgrade_regressions.RegressionTests.test_empty_audio_rejected) ... ok
+test_installed_apk_is_pulled_and_verified (test_upgrade_regressions.RegressionTests.test_installed_apk_is_pulled_and_verified) ... ok
+test_mocked_upgrade_uses_only_install_r (test_upgrade_regressions.RegressionTests.test_mocked_upgrade_uses_only_install_r) ... ok
+test_multiple_signers_rejected (test_upgrade_regressions.RegressionTests.test_multiple_signers_rejected) ... ok
+test_nonempty_audio_and_remote_quoting (test_upgrade_regressions.RegressionTests.test_nonempty_audio_and_remote_quoting) ... ok
+test_nonincreasing_version_blocks_install (test_upgrade_regressions.RegressionTests.test_nonincreasing_version_blocks_install) ... ok
+test_old_installed_signature_failure_blocks_install (test_upgrade_regressions.RegressionTests.test_old_installed_signature_failure_blocks_install) ... ok
+test_post_upgrade_file_loss_is_failure (test_upgrade_regressions.RegressionTests.test_post_upgrade_file_loss_is_failure) ... ok
+test_preexisting_file_change_blocks_install (test_upgrade_regressions.RegressionTests.test_preexisting_file_change_blocks_install) ... ok
+test_unexpected_path_rejected (test_upgrade_regressions.RegressionTests.test_unexpected_path_rejected) ... ok
+test_wrong_package_rejected (test_upgrade_regressions.RegressionTests.test_wrong_package_rejected) ... ok
+test_wrong_sha256_rejected (test_upgrade_regressions.RegressionTests.test_wrong_sha256_rejected) ... ok
+test_accepts_single_emulator (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_accepts_single_emulator) ... ok
+test_missing_download_fails_closed (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_missing_download_fails_closed) ... ok
+test_missing_version_fails_closed (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_missing_version_fails_closed) ... ok
+test_other_signature_is_rejected (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_other_signature_is_rejected) ... ok
+test_reads_installed_version (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_reads_installed_version) ... ok
+test_refuses_multiple_devices (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_refuses_multiple_devices) ... ok
+test_refuses_physical_device (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_refuses_physical_device) ... ok
+test_signature_and_package_checked (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_signature_and_package_checked) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 0.013s
+
+OK

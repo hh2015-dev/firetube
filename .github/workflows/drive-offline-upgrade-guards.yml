@@ -1,0 +1,23 @@
+name: Drive offline upgrade tool safety tests
+on:
+  push:
+    branches: [test/drive-offline-upgrade-regression-20261102]
+permissions:
+  contents: read
+jobs:
+  safety-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Original eight tests
+        run: python3 -m unittest discover -s tools/upgrade-tests -p 'test_verify_drive_offline_upgrade.py' -v
+      - name: Full tool regression suite (mocked Android SDK)
+        run: python3 -m unittest discover -s tools/upgrade-tests -p 'test_*.py' -v
+      - name: State the integration-test boundary
+        run: echo 'Tool unit tests only. Android upgrade, Drive authorization, audio download and offline playback are NOT tested by this workflow.'

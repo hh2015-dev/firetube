@@ -47,7 +47,7 @@ class UpgradeSafetyTest(unittest.TestCase):
             apk = pathlib.Path(d) / "test.apk"
             apk.write_bytes(b"dummy")
             details = "package: name='com.palmerintech.firetube.drivefavoritescounterspreview' versionCode='217'"
-            cert = "Signer #1 certificate SHA-1 digest: A4:1B:36:91:38:EB:A1:D5:0E:23:BF:11:09:55:BD:38:6B:EB:2A:68"
+            cert = "Number of signers: 1\nSigner #1 certificate SHA-1 digest: " + upgrade.EXPECTED_SHA1 + "\nSigner #1 certificate SHA-256 digest: " + upgrade.EXPECTED_SHA256 + "\nVerified using v2 scheme (APK Signature Scheme v2): true"
             with patch.object(upgrade.shutil, "which", return_value="/tool"), \
                  patch.object(upgrade, "cmd", side_effect=[details, cert]):
                 self.assertEqual(217, upgrade.inspect_apk(apk))
@@ -57,7 +57,7 @@ class UpgradeSafetyTest(unittest.TestCase):
             apk = pathlib.Path(d) / "test.apk"
             apk.write_bytes(b"dummy")
             details = "package: name='com.palmerintech.firetube.drivefavoritescounterspreview' versionCode='217'"
-            cert = "Signer #1 certificate SHA-1 digest: 00:11:22:33"
+            cert = "Number of signers: 1\nSigner #1 certificate SHA-1 digest: 00:11:22:33"
             with patch.object(upgrade.shutil, "which", return_value="/tool"), \
                  patch.object(upgrade, "cmd", side_effect=[details, cert]):
                 with self.assertRaisesRegex(RuntimeError, "signature does not match"):
@@ -66,3 +66,4 @@ class UpgradeSafetyTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -1,0 +1,13 @@
+test_accepts_single_emulator (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_accepts_single_emulator) ... ok
+test_missing_download_fails_closed (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_missing_download_fails_closed) ... ok
+test_missing_version_fails_closed (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_missing_version_fails_closed) ... ok
+test_other_signature_is_rejected (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_other_signature_is_rejected) ... ok
+test_reads_installed_version (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_reads_installed_version) ... ok
+test_refuses_multiple_devices (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_refuses_multiple_devices) ... ok
+test_refuses_physical_device (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_refuses_physical_device) ... ok
+test_signature_and_package_checked (test_verify_drive_offline_upgrade.UpgradeSafetyTest.test_signature_and_package_checked) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.003s
+
+OK
