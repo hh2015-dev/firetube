@@ -1,6 +1,6 @@
 <resources>
     <!-- The app's name is a brand: never translated. -->
-    <string name="app_name" translatable="false">FireTube Counters Test</string>
+    <string name="app_name" translatable="false">FireTube</string>
 
     <!-- Shared actions and labels -->
     <string name="action_back">Back</string>

@@ -1,7 +1,7 @@
 # Counters update signing
 
 This branch targets only `com.palmerintech.firetube.drivefavoritescounterspreview`.
-The installed baseline is versionCode 215. The next reviewed update is 216.
+The installed baseline is versionCode 215. The next reviewed update is 217 (216 was consumed by build verification).
 The approved certificate SHA-1 is `A4:1B:36:91:38:EB:A1:D5:0E:23:BF:11:09:55:BD:38:6B:EB:2A:68`.
 Both SHA-1 and SHA-256 are pinned in signing.py. Do not create a replacement key.
 
@@ -26,7 +26,7 @@ signed build fails when the approved key is absent. CI alone cannot issue update
 Do not distribute or install the unsigned intermediate.
 
 1. Locally run preflight with the approved private key before initiating a build.
-2. Increase config/counters-version.json: previousVersionCode = the last delivered
+2. Increase config/counters-version.json: previousVersionCode = the last allocated build
    code, versionCode > previousVersionCode; update VERSION_CODE and the expected
    badging check in favorites-counters.yml. Actions compares against preceding
    source history as well as the installed baseline. Reruns of the same source are

@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      VERSION_CODE: '216'
+      VERSION_CODE: '217'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,6 +46,13 @@ jobs:
           assert current['versionCode']>previous, 'Increase versionCode before producing another update'
           assert str(current['versionCode'])==os.environ['VERSION_CODE']
           PYVERSION
+      - name: Signing guard tests and actual Gradle rejection without key
+        run: |
+          python tools/counters-signing/test_signing.py -v
+          if ./gradlew :app:verifyCountersSigning --no-daemon > "$RUNNER_TEMP/missing-key-check.txt" 2>&1; then
+            echo '::error::Missing signing key was accepted'; exit 1
+          fi
+          grep -F 'Missing Counters signing configuration' "$RUNNER_TEMP/missing-key-check.txt"
       - name: Unit tests, Lint and unsigned compilation only
         run: ./gradlew :core:extractor:test testDebugUnitTest lintDebug assembleDebug -PcountersUnsignedCompilation=true --no-daemon --stacktrace
       - name: Resolve unsigned APK from AGP metadata
@@ -74,7 +81,7 @@ jobs:
           cp "$BUILD_TOOLS/lib/apksigner.jar" secure-output/apksigner.jar
           sha256sum secure-output/apksigner.jar > secure-output/apksigner-sha256.txt
           "$BUILD_TOOLS/aapt" dump badging "$APK_PATH" > secure-output/badging.txt
-          grep -F "package: name='com.palmerintech.firetube.drivefavoritescounterspreview' versionCode='216'" secure-output/badging.txt
+          grep -F "package: name='com.palmerintech.firetube.drivefavoritescounterspreview' versionCode='217'" secure-output/badging.txt
           grep -F "application-label:'FireTube Counters Test'" secure-output/badging.txt
           sha256sum "$APK_PATH" > secure-output/apk-sha256.txt
           stat --printf='%s\n' "$APK_PATH" > secure-output/apk-size.txt

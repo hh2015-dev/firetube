@@ -33,7 +33,7 @@ class SigningGuards(unittest.TestCase):
         with patch.object(s,'manifest_identity',return_value=(s.PACKAGE,215)):
             with self.assertRaisesRegex(ValueError,'package or versionCode'): s.verify(Path('x'),Path('jar'))
     def test_wrong_final_signer_fails(self):
-        with patch.object(s,'manifest_identity',return_value=(s.PACKAGE,216)), patch.object(s,'run',return_value=b'Signer #1 certificate SHA-1 digest: deadbeef\n'):
+        with patch.object(s,'manifest_identity',return_value=(s.PACKAGE,217)), patch.object(s,'run',return_value=b'Signer #1 certificate SHA-1 digest: deadbeef\n'):
             with self.assertRaisesRegex(ValueError,'certificate mismatch'): s.verify(Path('x'),Path('jar'))
 
 if __name__=='__main__': unittest.main()
