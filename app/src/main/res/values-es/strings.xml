@@ -374,6 +374,15 @@
     <string name="drive_playlist_saved">Carpeta guardada en Biblioteca → Listas. Ábrela allí para escuchar las canciones.</string>
     <string name="drive_playlist_already_saved">Esta carpeta ya está en Biblioteca → Listas. Se conservaron los cambios existentes.</string>
     <string name="drive_playlist_failed">No se pudo guardar la carpeta. Conecta Google Drive o revisa las carpetas disponibles sin conexión.</string>
+    <string name="drive_folder_remove_offline">Eliminar copias descargadas de carpeta</string>
+    <string name="drive_folder_remove_summary">¿Eliminar %2$d archivos locales de %1$s? Los archivos de Google Drive y las listas no se borrarán.</string>
+    <string name="drive_folder_remove_done">Se eliminaron %1$d copias locales.</string>
+    <string name="drive_offline_remove_failed">No se pudieron eliminar algunas copias locales.</string>
+    <string name="drive_remove_copy_only">¿Eliminar la copia descargada de %1$s de este dispositivo? El original de Google Drive seguirá disponible.</string>
+    <string name="drive_offline_removed">Copia local eliminada.</string>
+    <string name="drive_offline_saved">Audio guardado sin conexión.</string>
+    <string name="drive_playlist_download_failed">No se pudieron descargar algunos audios de Drive.</string>
+    <string name="drive_playlist_bulk_progress">Guardando audios de Drive: %1$d de %2$d</string>
     <string name="drive_playlist_save">Guardar lista</string>
     <string name="drive_folder_close">Cerrar</string>
     <string name="drive_remove_offline">Quitar copia descargada</string>
