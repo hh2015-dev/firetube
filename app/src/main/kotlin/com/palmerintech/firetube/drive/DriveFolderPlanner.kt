@@ -79,3 +79,6 @@ data class DriveFolderResult(
     val alreadySaved: Int,
     val failedFiles: List<String>,
 )
+
+/** Number of app-private audio copies removed; no Google Drive files are deleted. */
+data class DriveFolderRemovalResult(val removed: Int, val failedNames: List<String>)
