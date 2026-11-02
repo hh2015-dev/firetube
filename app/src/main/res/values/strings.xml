@@ -413,6 +413,10 @@
     <string name="drive_offline_removed">Offline audio copy removed.</string>
     <string name="drive_offline_saved">Audio saved for offline playback.</string>
     <string name="drive_playlist_download_failed">One or more Google Drive audio files could not be downloaded. Connect Google Drive and try again.</string>
+    <string name="drive_folder_toggle_favorite">Add or remove folder from Favorites</string>
+    <string name="drive_favorite_folders_section">Favorite folders</string>
+    <string name="drive_folder_favorite_added">Folder added to Favorites. Open it from Library - Favorites.</string>
+    <string name="drive_folder_favorite_failed">Could not update folder favorites. Reconnect to Google Drive or check saved folder listings.</string>
     <string name="drive_playlist_bulk_progress">Saving Drive songs: %1$d of %2$d</string>
     <string name="drive_playlist_save">Save playlist</string>
     <string name="drive_folder_close">Close</string>
