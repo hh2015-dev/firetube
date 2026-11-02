@@ -303,7 +303,9 @@ fun FireTubeRoot(container: AppContainer, pendingLink: String?, onLinkHandled: (
                         )
                     }
                     composable<TrackListRoute> { entry ->
-                        TrackListScreen(container, TrackList.valueOf(entry.toRoute<TrackListRoute>().list), onBack = { nav.popBackStack() }, content)
+                        TrackListScreen(container, TrackList.valueOf(entry.toRoute<TrackListRoute>().list),
+                            onBack = { nav.popBackStack() },
+                            onOpenPlaylist = { nav.navigate(PlaylistRoute(it)) }, contentPadding = content)
                     }
                     composable<StatsRoute> { StatsScreen(container, onBack = { nav.popBackStack() }, content) }
                 }

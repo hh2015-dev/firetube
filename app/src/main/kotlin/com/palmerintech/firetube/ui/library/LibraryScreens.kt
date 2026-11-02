@@ -21,10 +21,12 @@ import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LibraryMusic
@@ -54,6 +56,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -70,6 +73,7 @@ import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 import com.palmerintech.firetube.ui.Load
 import com.palmerintech.firetube.ui.message
 import com.palmerintech.firetube.ui.PlaylistViewModel
@@ -82,6 +86,8 @@ import com.palmerintech.firetube.ui.components.LocalTrackMenu
 import com.palmerintech.firetube.ui.components.SectionHeader
 import com.palmerintech.firetube.ui.components.TrackRow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -219,6 +225,19 @@ fun PlaylistScreen(container: AppContainer, playlistId: String, onBack: () -> Un
     val downloads by container.downloads.state.collectAsState()
     val current by container.player.state.collectAsState()
     val menu = LocalTrackMenu.current
+    val scope = rememberCoroutineScope()
+    val driveLibrary = container.driveLibrary
+    val driveRevision by driveLibrary.offlineRevision.collectAsState()
+    val workingDriveFiles = remember { mutableStateMapOf<String, Boolean>() }
+    var confirmRemoveDrive by remember { mutableStateOf<Track?>(null) }
+    var driveError by remember { mutableStateOf<String?>(null) }
+    var bulkJob by remember { mutableStateOf<Job?>(null) }
+    var bulkCompleted by remember { mutableIntStateOf(0) }
+    var bulkTotal by remember { mutableIntStateOf(0) }
+    val driveRemoveLabel = stringResource(R.string.drive_remove_offline)
+    val driveDownloadLabel = stringResource(R.string.drive_download)
+    val driveDownloadFailed = stringResource(R.string.drive_playlist_download_failed)
+    val driveRemoveFailed = stringResource(R.string.drive_offline_remove_failed)
     var showMenu by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -242,12 +261,58 @@ fun PlaylistScreen(container: AppContainer, playlistId: String, onBack: () -> Un
             actions = {
                 IconButton(onClick = { showMenu = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.action_more)) }
                 DropdownMenu(showMenu, { showMenu = false }) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.playlist_download_all)) }, onClick = { vm.downloadAll(); showMenu = false })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.playlist_download_all)) }, onClick = {
+                        showMenu = false
+                        // Existing YouTube downloads use Media3. Drive copies stay in app-private storage.
+                        vm.downloadAll()
+                        val selected = tracks.filter { it.sourceId == TrackIdentity.DRIVE }
+                        if (selected.isNotEmpty() && bulkJob == null) {
+                            bulkCompleted = 0
+                            bulkTotal = selected.size
+                            driveError = null
+                            bulkJob = scope.launch {
+                                var failures = 0
+                                try {
+                                    for (track in selected) {
+                                        if (!driveLibrary.isOffline(track.externalId)) {
+                                            try {
+                                                driveLibrary.downloadTrack(track)
+                                            } catch (e: CancellationException) {
+                                                throw e
+                                            } catch (_: Exception) {
+                                                failures++
+                                            }
+                                        }
+                                        bulkCompleted++
+                                    }
+                                    if (failures > 0) driveError = driveDownloadFailed
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } finally {
+                                    bulkJob = null
+                                }
+                            }
+                        }
+                    })
                     DropdownMenuItem(text = { Text(stringResource(R.string.playlist_rename)) }, onClick = { renaming = true; showMenu = false })
                     DropdownMenuItem(text = { Text(stringResource(R.string.playlist_delete)) }, onClick = { confirmDelete = true; showMenu = false })
                 }
             },
         )
+        if (driveError != null) {
+            Text(driveError.orEmpty(), modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                color = MaterialTheme.colorScheme.error)
+        }
+        if (bulkJob != null) {
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.padding(end = 12.dp))
+                Text(stringResource(R.string.drive_playlist_bulk_progress, bulkCompleted, bulkTotal),
+                    modifier = Modifier.weight(1f))
+                TextButton(onClick = { bulkJob?.cancel() }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        }
         LazyColumn(state = listState, contentPadding = contentPadding) {
             item { Header(tracks.firstOrNull()?.thumbnailUrl, playlist?.name.orEmpty(), pluralStringResource(R.plurals.song_count, tracks.size, tracks.size)) }
             item {
@@ -257,14 +322,52 @@ fun PlaylistScreen(container: AppContainer, playlistId: String, onBack: () -> Un
                 item { EmptyState(Icons.AutoMirrored.Filled.QueueMusic, stringResource(R.string.playlist_empty), stringResource(R.string.playlist_empty_body)) }
             }
             itemsIndexed(items, key = { _, it -> it.first }) { index, (key, track) ->
+                val driveOffline = remember(track.id, driveRevision) {
+                    track.sourceId == TrackIdentity.DRIVE && driveLibrary.isOffline(track.externalId)
+                }
                 ReorderableItem(reorder, key = key) {
                     TrackRow(
                         track,
                         onClick = { container.player.play(items.map { it.second }, index) },
                         onMore = { menu.open(track, removeLabel) { vm.remove(index) } },
                         isCurrent = current.current?.id == track.id,
-                        downloaded = downloads[track.id]?.completed == true,
+                        downloaded = driveOffline || downloads[track.id]?.completed == true,
                         trailing = {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (track.sourceId == TrackIdentity.DRIVE) {
+                                    when {
+                                        workingDriveFiles[track.id] == true -> {
+                                            CircularProgressIndicator(Modifier.padding(8.dp))
+                                        }
+                                        driveOffline -> {
+                                            IconButton(onClick = { confirmRemoveDrive = track }) {
+                                                Icon(Icons.Default.CloudDone, driveRemoveLabel)
+                                            }
+                                        }
+                                        else -> {
+                                            IconButton(
+                                                enabled = container.driveAccess.connected && bulkJob == null,
+                                                onClick = {
+                                                    workingDriveFiles[track.id] = true
+                                                    driveError = null
+                                                    scope.launch {
+                                                        try {
+                                                            driveLibrary.downloadTrack(track)
+                                                        } catch (e: CancellationException) {
+                                                            throw e
+                                                        } catch (_: Exception) {
+                                                            driveError = driveDownloadFailed
+                                                        } finally {
+                                                            workingDriveFiles.remove(track.id)
+                                                        }
+                                                    }
+                                                },
+                                            ) {
+                                                Icon(Icons.Default.Download, driveDownloadLabel)
+                                            }
+                                        }
+                                    }
+                                }
                             IconButton(
                                 modifier = Modifier.draggableHandle(
                                     onDragStarted = { dragFrom = items.indexOfFirst { it.first == key } },
@@ -276,6 +379,7 @@ fun PlaylistScreen(container: AppContainer, playlistId: String, onBack: () -> Un
                                 ),
                                 onClick = {},
                             ) { Icon(Icons.Default.DragHandle, stringResource(R.string.action_reorder)) }
+                            }
                         },
                     )
                 }
@@ -283,6 +387,32 @@ fun PlaylistScreen(container: AppContainer, playlistId: String, onBack: () -> Un
         }
     }
 
+    confirmRemoveDrive?.let { track ->
+        AlertDialog(
+            onDismissRequest = { confirmRemoveDrive = null },
+            title = { Text(stringResource(R.string.drive_remove_offline)) },
+            text = { Text(stringResource(R.string.drive_remove_copy_only, track.title)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmRemoveDrive = null
+                    scope.launch {
+                        try {
+                            driveLibrary.removeOffline(track.externalId)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            driveError = driveRemoveFailed
+                        }
+                    }
+                }) { Text(stringResource(R.string.drive_remove_offline)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmRemoveDrive = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
     if (renaming) {
         TextDialog(stringResource(R.string.playlist_rename_title), stringResource(R.string.playlist_name), stringResource(R.string.action_save), initial = playlist?.name.orEmpty(), onDismiss = { renaming = false }) {
             vm.rename(it); renaming = false
@@ -341,9 +471,14 @@ fun RemotePlaylistScreen(container: AppContainer, url: String, onBack: () -> Uni
 @UnstableApi
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit, contentPadding: PaddingValues) {
+fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit,
+    onOpenPlaylist: (String) -> Unit, contentPadding: PaddingValues) {
     val favorites by container.library.favorites.collectAsState(emptyList())
     val history by container.library.recent(200).collectAsState(emptyList())
+    val folderFavorites by container.driveLibrary.favoriteFolderIds.collectAsState()
+    val allPlaylists by container.library.playlists.collectAsState(emptyList())
+    val pinnedFolders = if (list == TrackList.FAVORITES) allPlaylists.filter { it.id in folderFavorites } else emptyList()
+    val driveRevision by container.driveLibrary.offlineRevision.collectAsState()
     val downloads by container.downloads.state.collectAsState()
     val scope = rememberCoroutineScope()
     val menu = LocalTrackMenu.current
@@ -362,8 +497,32 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
             },
         )
         LazyColumn(contentPadding = contentPadding) {
+            if (list == TrackList.FAVORITES && pinnedFolders.isNotEmpty()) {
+                item { SectionHeader(stringResource(R.string.drive_favorite_folders_section)) }
+                items(pinnedFolders, key = { it.id }) { pinned ->
+                    Row(Modifier.fillMaxWidth().clickable { onOpenPlaylist(pinned.id) }
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Folder, null)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(pinned.name, style = MaterialTheme.typography.bodyLarge)
+                            Text(pluralStringResource(R.plurals.song_count,
+                                pinned.trackCount, pinned.trackCount),
+                                style = MaterialTheme.typography.bodySmall)
+                        }
+                        IconButton(onClick = {
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                                container.driveLibrary.setFolderFavoritePlaylist(pinned.id, false)
+                            }
+                        }) {
+                            Icon(Icons.Default.Favorite, stringResource(R.string.action_remove_favorite))
+                        }
+                    }
+                }
+            }
             item { PlayShuffleRow(tracks, onPlay = { container.player.play(tracks) }, onShuffle = { container.player.play(tracks, shuffle = true) }) }
-            if (tracks.isEmpty()) {
+            if (tracks.isEmpty() && pinnedFolders.isEmpty()) {
                 item {
                     when (list) {
                         TrackList.FAVORITES -> EmptyState(Icons.Default.Favorite, stringResource(R.string.favorites_empty), stringResource(R.string.favorites_empty_body))
@@ -374,11 +533,14 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
             }
             itemsIndexed(tracks, key = { i, t -> "$i:${t.id}" }) { i, t ->
                 val d = downloads[t.id]
+                val driveOffline = remember(t.id, driveRevision) {
+                    t.sourceId == TrackIdentity.DRIVE && container.driveLibrary.isOffline(t.externalId)
+                }
                 TrackRow(
                     t,
                     onClick = { container.player.play(tracks, i) },
                     onMore = { menu.open(t) },
-                    downloaded = d?.completed == true,
+                    downloaded = driveOffline || d?.completed == true,
                     trailing = if (list == TrackList.DOWNLOADS && d != null && !d.completed) {
                         {
                             Column(horizontalAlignment = Alignment.End) {

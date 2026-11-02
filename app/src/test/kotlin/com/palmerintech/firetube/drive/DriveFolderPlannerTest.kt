@@ -58,6 +58,21 @@ class DriveFolderPlannerTest {
         assertEquals(2, plan.unknownSizes)
     }
 
+    @Test fun removalIncludesPreviouslySavedRestrictedAudio() = runTest {
+        val files = listOf(
+            DriveEntry("allowed", "song.mp3", "audio/mpeg"),
+            DriveEntry("blocked", "restricted.mp3", "audio/mpeg",
+                capabilities = DriveCapabilities(canDownload = false)),
+            DriveEntry("video", "clip.mp4", "video/mp4"),
+        )
+        val download = DriveFolderPlanner.scan("root-folder", "account") { files }
+        val removal = DriveFolderPlanner.scan("root-folder", "account",
+            includeRestrictedAudio = true) { files }
+        assertEquals(listOf("allowed"), download.audio.map { it.id })
+        assertEquals(listOf("allowed", "blocked"), removal.audio.map { it.id })
+        assertEquals(1, removal.blockedFiles)
+    }
+
     @Test fun refusesVirtualRootMassDownload() = runTest {
         val error = runCatching {
             DriveFolderPlanner.scan(DriveLibrary.SHARED_DRIVES, "account") { emptyList() }

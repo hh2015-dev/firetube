@@ -59,8 +59,8 @@ android {
     buildTypes {
         // Side-by-side test APK: never overwrite a differently signed personal installation.
         debug {
-            applicationIdSuffix = ".driveplaylistpreview"
-            versionNameSuffix = "-driveplaylistpreview"
+            applicationIdSuffix = ".drivefavoritespreview"
+            versionNameSuffix = "-drivefavoritespreview"
         }
         release {
             isMinifyEnabled = true

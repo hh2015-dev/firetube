@@ -2,10 +2,15 @@ package com.palmerintech.firetube.drive
 
 import android.content.Context
 import androidx.core.util.AtomicFile
+import com.palmerintech.firetube.extractor.Track
+import com.palmerintech.firetube.extractor.TrackIdentity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -33,7 +38,29 @@ class DriveLibrary(
             "nextPageToken,incompleteSearch,files(id,name,mimeType,parents,size,modifiedTime,capabilities(canDownload),shortcutDetails(targetId,targetMimeType))"
     }
 
+    private val favoriteFolderPrefs = context.getSharedPreferences("drive-favorite-folders", Context.MODE_PRIVATE)
+    private val _favoriteFolderIds = MutableStateFlow(
+        favoriteFolderPrefs.getStringSet("playlist-ids", emptySet())?.toSet().orEmpty()
+    )
+    /** These IDs point to ordinary, editable local playlists, not Drive folders on the network. */
+    val favoriteFolderIds = _favoriteFolderIds.asStateFlow()
+
+    fun setFolderFavoritePlaylist(playlistId: String, favorite: Boolean) {
+        require(playlistId.startsWith("drive-folder-")) { "Only Drive folder playlists can be pinned" }
+        val updated = if (favorite) _favoriteFolderIds.value + playlistId
+            else _favoriteFolderIds.value - playlistId
+        if (!favoriteFolderPrefs.edit().putStringSet("playlist-ids", updated.toSet()).commit())
+            throw IOException("Could not persist favorite folder")
+        _favoriteFolderIds.value = updated
+    }
+
+    fun isFolderFavoritePlaylist(playlistId: String): Boolean = playlistId in _favoriteFolderIds.value
+
     private val json = Json { ignoreUnknownKeys = true }
+    private val _offlineRevision = MutableStateFlow(0L)
+    /** Updates all Drive and playlist badges after a local copy changes. */
+    val offlineRevision = _offlineRevision.asStateFlow()
+    private fun offlineChanged() { _offlineRevision.update { it + 1L } }
     /** No OAuth-bearing request may follow redirects to an unverified host. */
     private val safeClient = client.newBuilder().followRedirects(false).followSslRedirects(false).build()
 
@@ -86,6 +113,29 @@ class DriveLibrary(
             if (!saved.isFile) throw IOException("Folder is not available offline: $id")
             DriveAudioTypes.visible(json.decodeFromString<DriveSnapshot>(saved.readText()).entries)
         }
+    }
+
+    /**
+     * The folder scanner wrote snapshots during the user's original download. To remove
+     * local copies even without network, never request a new Drive authorization or delete
+     * anything from Drive. Includes previously saved files that are now download-restricted.
+     */
+    suspend fun planFolderOfflineRemoval(folderId: String): DriveFolderPlan = withContext(Dispatchers.IO) {
+        val namespace = access.namespace ?: throw IOException("No previously connected Google Drive account")
+        DriveFolderPlanner.scan(folderId, namespace, includeRestrictedAudio = true) { id ->
+            val saved = cachedFile(id)
+            if (!saved.isFile) throw IOException("Folder contents have not been cached: $id")
+            DriveAudioTypes.visible(json.decodeFromString<DriveSnapshot>(saved.readText()).entries)
+        }
+    }
+
+    /** Only Google Drive track IDs can enter the Drive download path. */
+    suspend fun downloadTrack(track: Track): File {
+        require(track.sourceId == TrackIdentity.DRIVE) { "Not a Google Drive audio track" }
+        require(Regex("[A-Za-z0-9_-]{3,256}").matches(track.externalId)) { "Invalid Drive file ID" }
+        if (!access.connected) throw IOException("Connect Google Drive to download audio")
+        val entry = DriveEntry(track.externalId, track.fileName ?: track.title, "audio/mpeg")
+        return downloadSelected(entry)
     }
 
     /**
@@ -271,6 +321,7 @@ class DriveLibrary(
                     throw IOException("Incomplete audio download")
                 if (!partial.renameTo(file)) throw IOException("Could not complete offline audio file")
             }
+            offlineChanged()
             file
         } catch (e: Exception) {
             partial.delete()
@@ -278,10 +329,33 @@ class DriveLibrary(
         }
     }
 
-    /** Deletion is explicit too: clearing a selected copy never deletes the Drive original. */
-    suspend fun removeOffline(id: String) = withContext(Dispatchers.IO) {
-        audioFile(id).delete()
+    /** Delete only this app's private offline file; never call Drive's files.delete API. */
+    suspend fun removeOffline(id: String): Boolean = withContext(Dispatchers.IO) {
+        val file = audioFile(id)
+        if (!file.exists()) return@withContext false
+        if (!file.delete()) throw IOException("Could not remove the local offline copy")
+        offlineChanged()
+        true
     }
+
+    /** Confirmation is owned by the UI. One file may also appear in other playlists. */
+    suspend fun removeFolderOffline(plan: DriveFolderPlan): DriveFolderRemovalResult =
+        withContext(Dispatchers.IO) {
+            if (plan.accountNamespace != access.namespace) throw SecurityException("Google Drive account changed")
+            var removed = 0
+            val failed = mutableListOf<String>()
+            for (entry in plan.audio) {
+                currentCoroutineContext().ensureActive()
+                try {
+                    if (removeOffline(entry.effectiveId)) removed++
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (_: IOException) {
+                    failed += entry.name
+                }
+            }
+            DriveFolderRemovalResult(removed, failed)
+        }
 }
 
 @Serializable

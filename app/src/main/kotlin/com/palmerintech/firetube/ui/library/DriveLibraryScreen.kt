@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -34,6 +36,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -49,6 +53,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.data.DriveFolderPlaylistIdentity
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.drive.DriveEntry
 import com.palmerintech.firetube.drive.DriveLibrary
@@ -71,6 +76,8 @@ import kotlinx.coroutines.launch
 fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPadding: PaddingValues) {
     val access = container.driveAccess
     val library = container.driveLibrary
+    val offlineRevision by library.offlineRevision.collectAsState()
+    val pinnedFolderIds by library.favoriteFolderIds.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val folders = remember { mutableStateListOf(DriveEntry(DriveLibrary.ROOT, "My Drive", DriveEntry.FOLDER_MIME)) }
@@ -82,6 +89,8 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
     val working = remember { mutableStateMapOf<String, Boolean>() }
     val changed = remember { mutableStateMapOf<String, Boolean>() }
     var toRemove by remember { mutableStateOf<DriveEntry?>(null) }
+    var toRemoveFolder by remember { mutableStateOf<Pair<DriveEntry, DriveFolderPlan>?>(null) }
+    var offlineMessage by remember { mutableStateOf<String?>(null) }
     var refresh by remember { mutableStateOf(0) }
     var scanningFolder by remember { mutableStateOf<String?>(null) }
     var plannedFolder by remember { mutableStateOf<Pair<DriveEntry, DriveFolderPlan>?>(null) }
@@ -161,6 +170,10 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
     val playlistSavedMessage = stringResource(R.string.drive_playlist_saved)
     val playlistExistsMessage = stringResource(R.string.drive_playlist_already_saved)
     val playlistFailedMessage = stringResource(R.string.drive_playlist_failed)
+    val removalFailedMessage = stringResource(R.string.drive_offline_remove_failed)
+    val folderRemovalDone = stringResource(R.string.drive_folder_remove_done)
+    val addedFavoriteFolderMessage = stringResource(R.string.drive_folder_favorite_added)
+    val favoriteFolderFailedMessage = stringResource(R.string.drive_folder_favorite_failed)
 
     // Scanning only requests Drive metadata. Downloading starts after a second, explicit confirmation.
     fun prepareFolder(entry: DriveEntry) {
@@ -177,6 +190,24 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                 throw e
             } catch (_: Exception) {
                 error = scanFailedMessage
+            } finally {
+                scanningFolder = null
+            }
+        }
+    }
+
+    fun prepareFolderRemoval(entry: DriveEntry) {
+        if (scanningFolder != null || runningFolderJob != null) return
+        scanningFolder = entry.effectiveId
+        error = null
+        scope.launch {
+            try {
+                val plan = library.planFolderOfflineRemoval(entry.effectiveId)
+                toRemoveFolder = entry to plan
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                error = removalFailedMessage
             } finally {
                 scanningFolder = null
             }
@@ -205,6 +236,41 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         }
     }
 
+    fun toggleFavoriteFolder(entry: DriveEntry) {
+        if (scanningFolder != null || runningFolderJob != null) return
+        val account = access.namespace ?: run {
+            error = favoriteFolderFailedMessage
+            return
+        }
+        val playlistId = DriveFolderPlaylistIdentity.forFolder(account, entry.effectiveId)
+        if (playlistId in pinnedFolderIds) {
+            try {
+                library.setFolderFavoritePlaylist(playlistId, false)
+            } catch (_: Exception) { error = favoriteFolderFailedMessage }
+            return
+        }
+        scanningFolder = entry.effectiveId
+        error = null
+        scope.launch {
+            try {
+                val driveId = if (folder.effectiveId == DriveLibrary.SHARED_DRIVES)
+                    entry.effectiveId else sharedDriveId
+                val plan = library.planFolderPlaylist(entry.effectiveId, driveId)
+                val tracks = plan.audio.map(container.driveAudio::track)
+                container.library.saveDriveFolderAsPlaylist(
+                    entry.name, plan.accountNamespace, entry.effectiveId, tracks)
+                library.setFolderFavoritePlaylist(playlistId, true)
+                playlistMessage = addedFavoriteFolderMessage
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                error = favoriteFolderFailedMessage
+            } finally {
+                scanningFolder = null
+            }
+        }
+    }
+
     Column {
         TopAppBar(
             title = { Text(if (folders.size == 1) stringResource(R.string.drive_library_title) else folder.name) },
@@ -216,6 +282,17 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
             },
             actions = {
                 if (folders.size > 1 && !folder.effectiveId.startsWith("virtual:")) {
+                    val folderPlaylistId = access.namespace?.let {
+                        DriveFolderPlaylistIdentity.forFolder(it, folder.effectiveId)
+                    }
+                    IconButton(
+                        onClick = { toggleFavoriteFolder(folder) },
+                        enabled = scanningFolder == null && runningFolderJob == null,
+                    ) {
+                        Icon(if (folderPlaylistId in pinnedFolderIds) Icons.Default.Favorite
+                            else Icons.Default.FavoriteBorder,
+                            stringResource(R.string.drive_folder_toggle_favorite))
+                    }
                     IconButton(
                         onClick = { preparePlaylist(folder) },
                         enabled = scanningFolder == null && runningFolderJob == null,
@@ -241,12 +318,37 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
             Text(playlistMessage.orEmpty(), modifier = Modifier.padding(16.dp),
                 color = MaterialTheme.colorScheme.primary)
         }
+        if (offlineMessage != null) {
+            Text(offlineMessage.orEmpty(), modifier = Modifier.padding(16.dp),
+                color = MaterialTheme.colorScheme.primary)
+        }
         if (loading) CircularProgressIndicator(Modifier.padding(16.dp))
         if (items.isEmpty() && !loading) {
             Text(stringResource(R.string.drive_empty), modifier = Modifier.padding(16.dp))
         }
         LazyColumn(contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding() + 40.dp)) {
             items(items, key = { it.id }) { entry ->
+                val track = remember(entry) {
+                    if (entry.isAudio) container.driveAudio.track(entry) else null
+                }
+                val audioFavorite by if (track != null) {
+                    container.library.isFavorite(track.id).collectAsState(false)
+                } else {
+                    remember { mutableStateOf(false) }
+                }
+                val folderPlaylistId = if (entry.isFolder && !entry.effectiveId.startsWith("virtual:"))
+                    access.namespace?.let { DriveFolderPlaylistIdentity.forFolder(it, entry.effectiveId) }
+                    else null
+                val offline = remember(entry.effectiveId, offlineRevision) {
+                    library.isOffline(entry.effectiveId)
+                }
+                val offlineFolderCount by produceState(0, entry.effectiveId, offlineRevision) {
+                    value = if (entry.isFolder && !entry.effectiveId.startsWith("virtual:"))
+                        runCatching {
+                            library.planFolderOfflineRemoval(entry.effectiveId)
+                                .audio.count { library.isOffline(it.effectiveId) }
+                        }.getOrDefault(0) else 0
+                }
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -255,7 +357,7 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                     Icon(if (entry.isFolder) Icons.Default.Folder else Icons.Default.MusicNote, null)
                     Column(Modifier.weight(1f)) {
                         Text(entry.name, style = MaterialTheme.typography.bodyLarge)
-                        if (!entry.isFolder && library.isOffline(entry.effectiveId)) {
+                        if (!entry.isFolder && offline) {
                             Text(stringResource(R.string.drive_available_offline),
                                 color = MaterialTheme.colorScheme.primary,
                                 style = MaterialTheme.typography.bodySmall)
@@ -267,11 +369,26 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                         }
                         if (!entry.effectiveId.startsWith("virtual:")) {
                             IconButton(
+                                onClick = { toggleFavoriteFolder(entry) },
+                                enabled = scanningFolder == null && runningFolderJob == null,
+                            ) {
+                                Icon(if (folderPlaylistId in pinnedFolderIds) Icons.Default.Favorite
+                                    else Icons.Default.FavoriteBorder,
+                                    stringResource(R.string.drive_folder_toggle_favorite))
+                            }
+                            IconButton(
                                 onClick = { preparePlaylist(entry) },
                                 enabled = scanningFolder == null && runningFolderJob == null,
                             ) {
                                 Icon(Icons.Default.PlaylistAdd,
                                     stringResource(R.string.drive_save_folder_playlist))
+                            }
+                        }
+                        if (offlineFolderCount > 0) {
+                            IconButton(onClick = { prepareFolderRemoval(entry) },
+                                enabled = scanningFolder == null && runningFolderJob == null) {
+                                Icon(Icons.Default.CloudDone,
+                                    stringResource(R.string.drive_folder_remove_offline))
                             }
                         }
                         if (connected && !entry.effectiveId.startsWith("virtual:")) {
@@ -288,6 +405,22 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                             }
                         }
                     } else {
+                        if (track != null) {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    try {
+                                        container.library.toggleFavorite(track)
+                                    } catch (_: Exception) {
+                                        error = favoriteFolderFailedMessage
+                                    }
+                                }
+                            }) {
+                                Icon(if (audioFavorite) Icons.Default.Favorite
+                                    else Icons.Default.FavoriteBorder,
+                                    stringResource(if (audioFavorite) R.string.action_remove_favorite
+                                        else R.string.action_add_favorite))
+                            }
+                        }
                         // A Play click is the only path from the catalog to the media player.
                         IconButton(onClick = {
                             val track = container.driveAudio.track(entry)
@@ -298,10 +431,10 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                                     container.player.play(listOf(track))
                                 } catch (_: Exception) { error = "Audio playback could not start." }
                             }
-                        }, enabled = (connected || library.isOffline(entry.effectiveId)) && runningFolderJob == null) {
+                        }, enabled = (connected || offline) && runningFolderJob == null) {
                             Icon(Icons.Default.PlayArrow, stringResource(R.string.drive_play))
                         }
-                        if (library.isOffline(entry.effectiveId)) {
+                        if (offline) {
                             IconButton(onClick = { toRemove = entry }) {
                                 Icon(Icons.Default.CloudDone, stringResource(R.string.drive_remove_offline))
                             }
@@ -478,6 +611,38 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         )
     }
 
+    toRemoveFolder?.let { (entry, plan) ->
+        val downloaded = remember(plan, offlineRevision) {
+            plan.audio.count { library.isOffline(it.effectiveId) }
+        }
+        AlertDialog(
+            onDismissRequest = { toRemoveFolder = null },
+            title = { Text(stringResource(R.string.drive_folder_remove_offline)) },
+            text = { Text(stringResource(R.string.drive_folder_remove_summary, entry.name, downloaded)) },
+            confirmButton = {
+                TextButton(enabled = downloaded > 0, onClick = {
+                    toRemoveFolder = null
+                    scope.launch {
+                        try {
+                            val result = library.removeFolderOffline(plan)
+                            offlineMessage = folderRemovalDone.format(result.removed)
+                            if (result.failedNames.isNotEmpty()) error = removalFailedMessage
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (_: Exception) {
+                            error = removalFailedMessage
+                        }
+                    }
+                }) { Text(stringResource(R.string.drive_remove_offline)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { toRemoveFolder = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
     toRemove?.let { entry ->
         AlertDialog(
             onDismissRequest = { toRemove = null },
@@ -487,8 +652,12 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                 TextButton(onClick = {
                     toRemove = null
                     scope.launch {
-                        library.removeOffline(entry.effectiveId)
-                        changed[entry.effectiveId] = false
+                        try {
+                            library.removeOffline(entry.effectiveId)
+                            changed[entry.effectiveId] = false
+                        } catch (_: Exception) {
+                            error = removalFailedMessage
+                        }
                     }
                 }) { Text(stringResource(R.string.action_delete)) }
             },
