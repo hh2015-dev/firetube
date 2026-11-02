@@ -1,11 +1,11 @@
-name: Private Favorites counters APK
+name: Private side-by-side Favorites counters APK
 on:
   push:
-    branches: [dev/favorites-separate-counters-20261102]
+    branches: [dev/favorites-counters-side-by-side-20261102]
 permissions:
   contents: read
 concurrency:
-  group: favorites-counters-test
+  group: favorites-counters-side-by-side-test
   cancel-in-progress: true
 jobs:
   test-build:
@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      VERSION_CODE: '214'
+      VERSION_CODE: '215'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,8 +39,8 @@ jobs:
           BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
           "$BUILD_TOOLS/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk > secure-output/signature.txt
           "$BUILD_TOOLS/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > secure-output/badging.txt
-          grep -F "package: name='com.palmerintech.firetube.drivefavoritespreview' versionCode='214'" secure-output/badging.txt
-          grep -F "application-label:'FireTube Favorites Test'" secure-output/badging.txt
+          grep -F "package: name='com.palmerintech.firetube.drivefavoritescounterspreview' versionCode='215'" secure-output/badging.txt
+          grep -F "application-label:'FireTube Counters Test'" secure-output/badging.txt
           sha256sum app/build/outputs/apk/debug/app-debug.apk > secure-output/apk-sha256.txt
           stat --printf='%s\n' app/build/outputs/apk/debug/app-debug.apk > secure-output/apk-size.txt
           git rev-parse HEAD > secure-output/source-commit.txt
@@ -78,11 +78,27 @@ jobs:
           -----END PUBLIC KEY-----
           PUBLICKEY
           python -m pip install --no-cache-dir 'cryptography==46.0.4'
-          python tools/private-apk/encrypt_apk.py app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/delivery-public.pem" secure-output/FireTube-Favorites-Counters-Test.apk.enc
+          python tools/private-apk/encrypt_apk.py app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/delivery-public.pem" secure-output/FireTube-Counters-SideBySide-Test.apk.enc
+          # Preserve the new signing key only as authenticated ciphertext.
+          # It is never placed in the repository, Drive, or plaintext artifacts.
+          python - <<'PYKEY'
+          import os,struct,pathlib
+          from cryptography.hazmat.primitives import serialization,hashes
+          from cryptography.hazmat.primitives.asymmetric import padding
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          home=pathlib.Path.home()
+          source=home/'.android/debug.keystore'
+          assert source.is_file()
+          public=serialization.load_pem_public_key(pathlib.Path(os.environ['RUNNER_TEMP'],'delivery-public.pem').read_bytes())
+          key=AESGCM.generate_key(bit_length=256);nonce=os.urandom(12)
+          wrapped=public.encrypt(key,padding.OAEP(mgf=padding.MGF1(hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+          ciphertext=AESGCM(key).encrypt(nonce,source.read_bytes(),b'FireTube personal APK transfer v1')
+          pathlib.Path('secure-output/signing-key.keystore.enc').write_bytes(b'FIRETUBE_ENCRYPTED_APK_V1\n'+struct.pack('>H',len(wrapped))+wrapped+nonce+ciphertext)
+          PYKEY
           rm -f app/build/outputs/apk/debug/app-debug.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: favorites-counters-encrypted
+          name: favorites-counters-side-by-side-encrypted
           path: secure-output/
           if-no-files-found: error
           retention-days: 1
