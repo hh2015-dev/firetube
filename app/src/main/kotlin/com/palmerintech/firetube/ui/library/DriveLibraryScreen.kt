@@ -19,6 +19,8 @@ import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PlaylistAdd
@@ -51,6 +53,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.util.UnstableApi
 import com.palmerintech.firetube.AppContainer
+import com.palmerintech.firetube.data.DriveFolderPlaylistIdentity
 import com.palmerintech.firetube.R
 import com.palmerintech.firetube.drive.DriveEntry
 import com.palmerintech.firetube.drive.DriveLibrary
@@ -74,6 +77,7 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
     val access = container.driveAccess
     val library = container.driveLibrary
     val offlineRevision by library.offlineRevision.collectAsState()
+    val pinnedFolderIds by library.favoriteFolderIds.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val folders = remember { mutableStateListOf(DriveEntry(DriveLibrary.ROOT, "My Drive", DriveEntry.FOLDER_MIME)) }
@@ -168,6 +172,8 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
     val playlistFailedMessage = stringResource(R.string.drive_playlist_failed)
     val removalFailedMessage = stringResource(R.string.drive_offline_remove_failed)
     val folderRemovalDone = stringResource(R.string.drive_folder_remove_done)
+    val addedFavoriteFolderMessage = stringResource(R.string.drive_folder_favorite_added)
+    val favoriteFolderFailedMessage = stringResource(R.string.drive_folder_favorite_failed)
 
     // Scanning only requests Drive metadata. Downloading starts after a second, explicit confirmation.
     fun prepareFolder(entry: DriveEntry) {
@@ -230,6 +236,41 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         }
     }
 
+    fun toggleFavoriteFolder(entry: DriveEntry) {
+        if (scanningFolder != null || runningFolderJob != null) return
+        val account = access.namespace ?: run {
+            error = favoriteFolderFailedMessage
+            return
+        }
+        val playlistId = DriveFolderPlaylistIdentity.forFolder(account, entry.effectiveId)
+        if (playlistId in pinnedFolderIds) {
+            try {
+                library.setFolderFavoritePlaylist(playlistId, false)
+            } catch (_: Exception) { error = favoriteFolderFailedMessage }
+            return
+        }
+        scanningFolder = entry.effectiveId
+        error = null
+        scope.launch {
+            try {
+                val driveId = if (folder.effectiveId == DriveLibrary.SHARED_DRIVES)
+                    entry.effectiveId else sharedDriveId
+                val plan = library.planFolderPlaylist(entry.effectiveId, driveId)
+                val tracks = plan.audio.map(container.driveAudio::track)
+                container.library.saveDriveFolderAsPlaylist(
+                    entry.name, plan.accountNamespace, entry.effectiveId, tracks)
+                library.setFolderFavoritePlaylist(playlistId, true)
+                playlistMessage = addedFavoriteFolderMessage
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                error = favoriteFolderFailedMessage
+            } finally {
+                scanningFolder = null
+            }
+        }
+    }
+
     Column {
         TopAppBar(
             title = { Text(if (folders.size == 1) stringResource(R.string.drive_library_title) else folder.name) },
@@ -241,6 +282,17 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
             },
             actions = {
                 if (folders.size > 1 && !folder.effectiveId.startsWith("virtual:")) {
+                    val folderPlaylistId = access.namespace?.let {
+                        DriveFolderPlaylistIdentity.forFolder(it, folder.effectiveId)
+                    }
+                    IconButton(
+                        onClick = { toggleFavoriteFolder(folder) },
+                        enabled = scanningFolder == null && runningFolderJob == null,
+                    ) {
+                        Icon(if (folderPlaylistId in pinnedFolderIds) Icons.Default.Favorite
+                            else Icons.Default.FavoriteBorder,
+                            stringResource(R.string.drive_folder_toggle_favorite))
+                    }
                     IconButton(
                         onClick = { preparePlaylist(folder) },
                         enabled = scanningFolder == null && runningFolderJob == null,
@@ -276,6 +328,17 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
         }
         LazyColumn(contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding() + 40.dp)) {
             items(items, key = { it.id }) { entry ->
+                val track = remember(entry) {
+                    if (entry.isAudio) container.driveAudio.track(entry) else null
+                }
+                val audioFavorite by if (track != null) {
+                    container.library.isFavorite(track.id).collectAsState(false)
+                } else {
+                    remember { mutableStateOf(false) }
+                }
+                val folderPlaylistId = if (entry.isFolder && !entry.effectiveId.startsWith("virtual:"))
+                    access.namespace?.let { DriveFolderPlaylistIdentity.forFolder(it, entry.effectiveId) }
+                    else null
                 val offline = remember(entry.effectiveId, offlineRevision) {
                     library.isOffline(entry.effectiveId)
                 }
@@ -306,6 +369,14 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                         }
                         if (!entry.effectiveId.startsWith("virtual:")) {
                             IconButton(
+                                onClick = { toggleFavoriteFolder(entry) },
+                                enabled = scanningFolder == null && runningFolderJob == null,
+                            ) {
+                                Icon(if (folderPlaylistId in pinnedFolderIds) Icons.Default.Favorite
+                                    else Icons.Default.FavoriteBorder,
+                                    stringResource(R.string.drive_folder_toggle_favorite))
+                            }
+                            IconButton(
                                 onClick = { preparePlaylist(entry) },
                                 enabled = scanningFolder == null && runningFolderJob == null,
                             ) {
@@ -334,6 +405,22 @@ fun DriveLibraryScreen(container: AppContainer, onBack: () -> Unit, contentPaddi
                             }
                         }
                     } else {
+                        if (track != null) {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    try {
+                                        container.library.toggleFavorite(track)
+                                    } catch (_: Exception) {
+                                        error = favoriteFolderFailedMessage
+                                    }
+                                }
+                            }) {
+                                Icon(if (audioFavorite) Icons.Default.Favorite
+                                    else Icons.Default.FavoriteBorder,
+                                    stringResource(if (audioFavorite) R.string.action_remove_favorite
+                                        else R.string.action_add_favorite))
+                            }
+                        }
                         // A Play click is the only path from the catalog to the media player.
                         IconButton(onClick = {
                             val track = container.driveAudio.track(entry)
