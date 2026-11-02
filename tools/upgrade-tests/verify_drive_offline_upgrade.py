@@ -45,6 +45,15 @@ def check_emulator():
     return active[0]
 
 
+def installed_version(serial):
+    """Require an installed package and extract its Android versionCode."""
+    output = adb("-s", serial, "shell", "dumpsys", "package", PACKAGE)
+    m = re.search(r"\\bversionCode=(\\d+)\\b", output)
+    if not m:
+        raise RuntimeError("Could not verify installed Counters versionCode")
+    return int(m.group(1))
+
+
 def snapshot(serial):
     # run-as is supported only by debuggable builds; fail rather than root or bypass it.
     command = ["-s", serial, "exec-out", "run-as", PACKAGE]
@@ -91,21 +100,29 @@ def main():
         if args.state.exists():
             raise RuntimeError("Baseline already exists; refusing to overwrite evidence")
         before = snapshot(serial)
-        args.state.write_text(json.dumps({"package": PACKAGE, "files": before}, indent=2))
+        args.state.write_text(json.dumps({"package": PACKAGE, "serial": serial, "versionCode": installed_version(serial), "files": before}, indent=2))
         print(f"BASELINE SAVED: {len(before)} offline-related files, including audio")
         return
     if args.apk is None:
         raise RuntimeError("--apk required for upgrade")
     original = json.loads(args.state.read_text())
-    if original["package"] != PACKAGE:
-        raise RuntimeError("Wrong baseline package")
+    if original["package"] != PACKAGE or original.get("serial") != serial:
+        raise RuntimeError("Wrong baseline package or emulator; refusing cross-device comparison")
+    old_version = installed_version(serial)
+    if old_version != original.get("versionCode"):
+        raise RuntimeError("Installed version differs from recorded baseline")
     before = original["files"]
     current = snapshot(serial)
     if before != current:
         raise RuntimeError("Offline files already changed BEFORE upgrade; refusing to continue")
     version = inspect_apk(args.apk)
+    if version <= old_version:
+        raise RuntimeError(f"Not an upgrade: installed={old_version}, incoming={version}")
     print(f"Upgrading disposable emulator to versionCode={version} with pinned signing certificate")
     adb("-s", serial, "install", "-r", str(args.apk))
+    after_version = installed_version(serial)
+    if after_version != version:
+        raise RuntimeError(f"Installed version does not match incoming APK: {after_version} != {version}")
     after = snapshot(serial)
     if after != before:
         added = sorted(set(after) - set(before))
