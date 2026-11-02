@@ -102,9 +102,9 @@ class DriveLibrary(
      * local copies even without network, never request a new Drive authorization or delete
      * anything from Drive. Includes previously saved files that are now download-restricted.
      */
-    suspend fun planFolderOfflineRemoval(folderId: String): DriveFolderPlan {
+    suspend fun planFolderOfflineRemoval(folderId: String): DriveFolderPlan = withContext(Dispatchers.IO) {
         val namespace = access.namespace ?: throw IOException("No previously connected Google Drive account")
-        return DriveFolderPlanner.scan(folderId, namespace, includeRestrictedAudio = true) { id ->
+        DriveFolderPlanner.scan(folderId, namespace, includeRestrictedAudio = true) { id ->
             val saved = cachedFile(id)
             if (!saved.isFile) throw IOException("Folder contents have not been cached: $id")
             DriveAudioTypes.visible(json.decodeFromString<DriveSnapshot>(saved.readText()).entries)
