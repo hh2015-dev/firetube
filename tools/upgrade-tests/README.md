@@ -9,6 +9,9 @@
 - A **newer signed APK** with exactly that application ID and signing certificate and a higher versionCode.
 - A dedicated test Google account and a disposable audio file in Drive. Do not use production user media or tokens in test logs.
 
+## Static safety tests
+Run `python3 -m unittest discover -s tools/upgrade-tests -p 'test_*.py' -v` before the emulator workflow. These tests mock Android SDK commands; they do **not** verify media survival across a real installation.
+
 ## Procedure
 
 1. Install the older APK **only on the emulator**.
@@ -21,7 +24,7 @@
 
    `python3 tools/upgrade-tests/verify_drive_offline_upgrade.py upgrade --state /tmp/fire-tube-drive-baseline.json --apk /absolute/path/to/newer.apk`
 
-5. The script confirms that the emulator, application package, and signature match; installs the update using `adb install -r`; then compares path, length, and SHA-256 of all test Drive offline files. It fails when the audio files were not present beforehand, the files differ, the signing identity differs, the package differs, or the emulator requirement is not satisfied.
+5. The script confirms that only one emulator is connected, the baseline is from that same emulator and installed version, the incoming versionCode increases, and the incoming application package and signature match; installs the update using `adb install -r`; then compares path, length, and SHA-256 of all test Drive offline files. It fails when the audio files were not present beforehand, the files differ, the signing identity differs, the package differs, or the emulator requirement is not satisfied.
 6. After script PASS, open the app and **manually** confirm that the same test track still shows **Available offline** and plays in airplane mode. Record this result separately.
 
 ## What this does *not* prove
