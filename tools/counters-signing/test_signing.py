@@ -33,7 +33,17 @@ class SigningGuards(unittest.TestCase):
         with patch.object(s,'manifest_identity',return_value=(s.PACKAGE,215)):
             with self.assertRaisesRegex(ValueError,'package or versionCode'): s.verify(Path('x'),Path('jar'))
     def test_wrong_final_signer_fails(self):
-        with patch.object(s,'manifest_identity',return_value=(s.PACKAGE,217)), patch.object(s,'run',return_value=b'Signer #1 certificate SHA-1 digest: deadbeef\n'):
+        with patch.object(s,'manifest_identity',return_value=(s.PACKAGE,217)), patch.object(s,'run',return_value=b'Number of signers: 1\nSigner #1 certificate SHA-1 digest: deadbeef\n'):
             with self.assertRaisesRegex(ValueError,'certificate mismatch'): s.verify(Path('x'),Path('jar'))
+
+class SignatureReportFormats(unittest.TestCase):
+    def test_current_and_legacy_apksigner_output(self):
+        for prefix in ['Signer #1', 'V3.0 Signer:']:
+            report=('Number of signers: 1\n'+prefix+' certificate SHA-1 digest: '+s.SHA1.lower()+'\n'+prefix+' certificate SHA-256 digest: '+s.SHA256.lower()+'\nVerified using v2 scheme (APK Signature Scheme v2): true\n').encode()
+            with self.subTest(prefix=prefix), patch.object(s,'manifest_identity',return_value=(s.PACKAGE,s.version())), patch.object(s,'run',return_value=report), patch.object(Path,'read_bytes',return_value=b'APK bytes'):
+                self.assertEqual(s.verify(Path('x'),Path('jar'))['apksigner'],'PASS')
+    def test_multiple_signers_rejected(self):
+        with patch.object(s,'manifest_identity',return_value=(s.PACKAGE,s.version())), patch.object(s,'run',return_value=b'Number of signers: 2\n'):
+            with self.assertRaisesRegex(ValueError,'multiple signers'): s.verify(Path('x'),Path('jar'))
 
 if __name__=='__main__': unittest.main()

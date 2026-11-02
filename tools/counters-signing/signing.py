@@ -89,9 +89,11 @@ def verify(apk, jar):
     if manifest_identity(apk) != (PACKAGE, n):
         raise ValueError('APK package or versionCode mismatch')
     s = run(['java', '-jar', str(jar), 'verify', '--verbose', '--print-certs', str(apk)]).decode()
+    if not re.search(r"(?m)^Number of signers: 1\s*$", s):
+        raise ValueError("APK certificate mismatch or multiple signers")
     for label, expected in [('SHA-1', SHA1), ('SHA-256', SHA256)]:
-        actual = re.findall(r'Signer #\d+ certificate ' + label + r' digest: ([0-9a-fA-F]+)', s)
-        if len(actual) != 1 or actual[0].upper() != expected:
+        actual = re.findall(r'(?m)^.*\bcertificate ' + label + r' digest: ([0-9a-fA-F]+)\s*$', s)
+        if not actual or {v.upper() for v in actual} != {expected}:
             raise ValueError('APK certificate mismatch or multiple signers')
     if 'Verified using v2 scheme (APK Signature Scheme v2): true' not in s:
         raise ValueError('APK v2 signature verification failed')
