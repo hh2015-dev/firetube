@@ -109,6 +109,8 @@ fun LibraryScreen(
 ) {
     val playlists by container.library.playlists.collectAsState(emptyList())
     val favorites by container.library.favorites.collectAsState(emptyList())
+    val favoriteFolderIds by container.driveLibrary.favoriteFolderIds.collectAsState()
+    val favoriteCounts = summarizeFavorites(playlists, favoriteFolderIds, favorites)
     val downloads by container.downloads.state.collectAsState()
     val scope = rememberCoroutineScope()
     var dialog by remember { mutableStateOf<String?>(null) } // "new" | "import"
@@ -117,7 +119,7 @@ fun LibraryScreen(
         Column {
             TopAppBar(title = { Text(stringResource(R.string.library_title), fontWeight = FontWeight.Bold) })
             LazyColumn(contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding() + 80.dp)) {
-                item { ListItemRow(Icons.Default.Favorite, stringResource(R.string.library_favorites), pluralStringResource(R.plurals.song_count, favorites.size, favorites.size)) { onOpenList(TrackList.FAVORITES) } }
+                item { ListItemRow(Icons.Default.Favorite, stringResource(R.string.library_favorites), favoriteCountsText(favoriteCounts)) { onOpenList(TrackList.FAVORITES) } }
                 item {
                     val downloaded = downloads.values.count { it.completed }
                     ListItemRow(Icons.Default.Download, stringResource(R.string.library_downloads), pluralStringResource(R.plurals.library_downloads_summary, downloaded, downloaded)) {
@@ -477,7 +479,8 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
     val history by container.library.recent(200).collectAsState(emptyList())
     val folderFavorites by container.driveLibrary.favoriteFolderIds.collectAsState()
     val allPlaylists by container.library.playlists.collectAsState(emptyList())
-    val pinnedFolders = if (list == TrackList.FAVORITES) allPlaylists.filter { it.id in folderFavorites } else emptyList()
+    val pinnedFolders = if (list == TrackList.FAVORITES) pinnedFavoriteFolders(allPlaylists, folderFavorites) else emptyList()
+    val favoriteCounts = summarizeFavorites(allPlaylists, folderFavorites, favorites)
     val driveRevision by container.driveLibrary.offlineRevision.collectAsState()
     val downloads by container.downloads.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -490,7 +493,14 @@ fun TrackListScreen(container: AppContainer, list: TrackList, onBack: () -> Unit
 
     Column {
         TopAppBar(
-            title = { Text(stringResource(list.title)) },
+            title = {
+                Column {
+                    Text(stringResource(list.title))
+                    if (list == TrackList.FAVORITES) {
+                        Text(favoriteCountsText(favoriteCounts), style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+            },
             navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.action_back)) } },
             actions = {
                 if (list == TrackList.HISTORY && history.isNotEmpty()) TextButton(onClick = { scope.launch { container.library.clearHistory() } }) { Text(stringResource(R.string.history_clear)) }

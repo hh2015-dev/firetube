@@ -1,0 +1,89 @@
+name: Private Favorites counters APK
+on:
+  push:
+    branches: [dev/favorites-separate-counters-20261102]
+permissions:
+  contents: read
+concurrency:
+  group: favorites-counters-test
+  cancel-in-progress: true
+jobs:
+  test-build:
+    if: github.repository == 'hh2015-dev/firetube'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERSION_CODE: '214'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: true
+      - name: Unit tests, reactive UI tests, Lint and Debug APK
+        run: ./gradlew :core:extractor:test testDebugUnitTest lintDebug assembleDebug --no-daemon --stacktrace
+      - name: Record tests, package and actual signature
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p secure-output
+          BUILD_TOOLS="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$BUILD_TOOLS/apksigner" verify --verbose --print-certs app/build/outputs/apk/debug/app-debug.apk > secure-output/signature.txt
+          "$BUILD_TOOLS/aapt" dump badging app/build/outputs/apk/debug/app-debug.apk > secure-output/badging.txt
+          grep -F "package: name='com.palmerintech.firetube.drivefavoritespreview' versionCode='214'" secure-output/badging.txt
+          grep -F "application-label:'FireTube Favorites Test'" secure-output/badging.txt
+          sha256sum app/build/outputs/apk/debug/app-debug.apk > secure-output/apk-sha256.txt
+          stat --printf='%s\n' app/build/outputs/apk/debug/app-debug.apk > secure-output/apk-size.txt
+          git rev-parse HEAD > secure-output/source-commit.txt
+          cat secure-output/signature.txt
+          python - <<'PY'
+          import pathlib,json,xml.etree.ElementTree as E
+          suites=[E.parse(p).getroot() for p in pathlib.Path('.').glob('**/build/test-results/**/TEST-*.xml')]
+          summary={k:sum(int(s.attrib.get(k,0)) for s in suites) for k in ['tests','failures','errors','skipped']}
+          summary['counter_tests']=[c.attrib.get('classname','')+'.'+c.attrib['name'] for s in suites for c in s.findall('testcase') if 'FavoriteCounts' in c.attrib.get('classname','')]
+          sarif=json.loads(pathlib.Path('app/build/reports/lint-results-debug.sarif').read_text())
+          results=[r for run in sarif['runs'] for r in run.get('results',[])]
+          summary['lint_errors']=sum(r.get('level')=='error' for r in results)
+          summary['lint_warnings']=sum(r.get('level','warning')=='warning' for r in results)
+          pathlib.Path('secure-output/tests.json').write_text(json.dumps(summary,indent=2))
+          print(json.dumps(summary,indent=2))
+          assert summary['failures']==summary['errors']==summary['lint_errors']==0
+          assert len(summary['counter_tests'])==9
+          PY
+      - name: Encrypt private APK; never upload plaintext
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          cat > "$RUNNER_TEMP/delivery-public.pem" <<'PUBLICKEY'
+          -----BEGIN PUBLIC KEY-----
+          MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAkJo5JCBULOmVr3MoX6du
+          JOlliYZrQXTvIxiYwpW5JCXMllsnnjDSDDoegaln1pjHXqv6++A6ikEGUA0oU4q5
+          /3HXjHybXqkuqKjONN8MhU/WkxCnvFMVy0DWdtwn8IZB57LmmUHQuLPkKVQTBglW
+          N8pbA9NjJJtJNt28lT1QNCefqxVy4ZDHF1R5SWFSu0wYjlFhV2oujJFc6stLJr4d
+          Moydf243Lc3BV1DzM8hH5sPY9NLVd2FicmlfLAqdhrYjt0HDiTbfPZHhbApJKzP3
+          wCwHul6oMK9ulo7MmRolHmNfWhcU05SvN7L6PIkLYeJLQRbad1kl3F5VVR3TVWX+
+          ggFV+MtwwG1js/h3GXbxfx/Kj441X+Inbkv/NP+Y1DzuRfpo4HVWJcgThFQN0BJF
+          TPB4f48cg/TJKlEHSnvBL4bvgvDeXMR8nu+vPTHXhMO1hQ/QnmrvbclxuW+BZzFc
+          CLs+8ACqgzMaX7ivafE77k6oay+pW4E/RQbJqy/NU9EJAgMBAAE=
+          -----END PUBLIC KEY-----
+          PUBLICKEY
+          python -m pip install --no-cache-dir 'cryptography==46.0.4'
+          python tools/private-apk/encrypt_apk.py app/build/outputs/apk/debug/app-debug.apk "$RUNNER_TEMP/delivery-public.pem" secure-output/FireTube-Favorites-Counters-Test.apk.enc
+          rm -f app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: favorites-counters-encrypted
+          path: secure-output/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0

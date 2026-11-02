@@ -1,0 +1,4 @@
+<resources>
+    <string name="library_favorites_counts">Folders: %1$d · Songs: %2$d</string>
+    <string name="library_favorites_counts_ar" translatable="false">المجلدات: %1$d · الأغاني: %2$d</string>
+</resources>
